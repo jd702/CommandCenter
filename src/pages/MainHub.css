@@ -1,0 +1,32 @@
+.container {
+  margin-top: 20px;
+}
+
+.button {
+  margin-bottom: 20px;
+}
+
+.quick-links {
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.system-status {
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.link-line-remove {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* MainHub.css 
+.container {
+    margin-top: 20px;
+  }
+  
+  .button {
+    margin-bottom: 20px;
+  }
+  */

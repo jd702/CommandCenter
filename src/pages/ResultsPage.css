@@ -1,0 +1,10 @@
+.results-section {
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .sensor-results, .camera-results {
+    padding: 10px;
+    border: 1px solid #ccc;
+    background-color: #f9f9f9;
+  }
