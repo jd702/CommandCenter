@@ -1,20 +1,25 @@
 import React from "react";
 import { createRoot } from 'react-dom/client';
-import { Route, BrowserRouter as Router, Routes, Navigate } from "react-router-dom";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import './index.css'; // Global styles
 import Home from "./pages/Home";
-//import HistoryData from "./pages/HistoryData";
-import SensorAudioCollection from "./pages/SensorAudioCollection"; // Corrected import
-import CameraVisualDataCollection from "./pages/CameraVisualDataCollection"; // Corrected import
+import SensorAudioCollection from "./pages/SensorAudioCollection";
+import CameraVisualDataCollection from "./pages/CameraVisualDataCollection";
 import Tasking from './pages/Tasking';
-import MainHub from './pages/MainHub'; // Updated import
+import MainHub from './pages/MainHub';
 import NoPageFound from "./pages/NoPageFound";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import SettingsPage from "./pages/SettingsPage";
+import History from "./pages/History";
+import AgentTracker from "./pages/AgentTracker";  // ✅ Import AgentTracker
+import Ros2Agents from "./pages/Ros2Agents";  // ✅ Import Ros2Agents
+import { IpProvider } from './context/IpContext';
+import { IpProvider2 } from './context/IpContext2';
+import { CommandListProvider } from './context/CommandListContext';
 
 const theme = createTheme({
     palette: {
-        mode: 'light', // or 'dark' based on your preference
+        mode: 'light',
     },
 });
 
@@ -24,19 +29,27 @@ const root = createRoot(rootElement);
 function AppRouter() {
   return (
     <ThemeProvider theme={theme}>
-      <Router>
-        <Routes>
-          <Route path="/" element={<MainHub />}>
-            <Route index element={<Home />} />
-            <Route path="sensor-audio" element={<SensorAudioCollection />} /> {/* Corrected path */}
-            <Route path="camera-visual" element={<CameraVisualDataCollection />} /> {/* Corrected path */}
-            <Route path="tasking" element={<Tasking />} />
-            <Route path="*" element={<NoPageFound />} />
-            <Route path="settings" element={<SettingsPage/>} />
-
-          </Route>
-        </Routes>
-      </Router>
+      <CommandListProvider>
+        <IpProvider>
+          <IpProvider2>
+            <Router>
+              <Routes>
+                <Route path="/" element={<MainHub />}>
+                  <Route index element={<Home />} />
+                  <Route path="sensor-audio" element={<SensorAudioCollection />} />
+                  <Route path="camera-visual" element={<CameraVisualDataCollection />} />
+                  <Route path="tasking" element={<Tasking />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="history" element={<History />} />
+                  <Route path="tracker" element={<AgentTracker />} />  
+                  <Route path="ros2agents" element={<Ros2Agents />} />  
+                  <Route path="*" element={<NoPageFound />} />
+                </Route>
+              </Routes>
+            </Router>
+          </IpProvider2>
+        </IpProvider>
+      </CommandListProvider>
     </ThemeProvider>
   );
 }
@@ -46,7 +59,3 @@ root.render(
     <AppRouter />
   </React.StrictMode>
 );
-
-export default AppRouter;
-//<Route path="historydata" element={<HistoryData />} />
-//  <Route path="results" element={<Navigate to="/pages/MainHub" />} /> {/* Redirect old results path */}

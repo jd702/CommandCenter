@@ -1,0 +1,52 @@
+/* import React, { useState, useEffect } from "react";
+import { GoogleMap, LoadScript, Marker } from "@react-google-maps/api";
+import io from "socket.io-client";
+
+const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY; // 🔥 Load from .env
+
+const mapContainerStyle = {
+  width: "100%",
+  height: "100vh",
+};
+
+const defaultCenter = {
+  lat: 38.9072, // Default: Washington, D.C.
+  lng: -77.0369,
+};
+
+const AgentTracker = () => {
+  const [agents, setAgents] = useState([]);
+
+  useEffect(() => {
+    // Connect to WebSocket backend
+    const socket = io("http://localhost:3000");
+
+    socket.on("updateAgents", (updatedAgents) => {
+      setAgents(updatedAgents);
+    });
+
+    return () => socket.disconnect();
+  }, []);
+
+  return (
+    <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY}>
+      <GoogleMap mapContainerStyle={mapContainerStyle} zoom={10} center={defaultCenter}>
+        {agents.map((agent) => (
+          <Marker
+            key={agent.id}
+            position={{ lat: agent.lat, lng: agent.lng }}
+            label={agent.name}
+            icon={{
+              url: agent.status === "online"
+                ? "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+                : "http://maps.google.com/mapfiles/ms/icons/red-dot.png",
+            }}
+          />
+        ))}
+      </GoogleMap>
+    </LoadScript>
+  );
+};
+
+export default AgentTracker;
+*/

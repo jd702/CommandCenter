@@ -34,6 +34,34 @@ body.dark-mode {
     background-color: #535bf2;
 }
 
+/* Terminal Styling */
+.terminal {
+    background-color: #000;
+    color: #0f0;
+    font-family: monospace;
+    padding: 10px;
+    border-radius: 5px;
+    height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.command-history {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.command {
+    margin: 5px 0;
+}
+
+.command-input {
+    display: flex;
+    align-items: center;
+}
+
 /* Main Content Area */
 .main-content {
     flex-grow: 1;

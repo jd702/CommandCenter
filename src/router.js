@@ -1,13 +1,15 @@
 import MainHub from "./pages/MainHub";
-import SensorAudioCollection from "./pages/SensorAudioCollection"; // Corrected import
-import CameraVisualDataCollection from "./pages/CameraVisualDataCollection"; // Corrected import
+import SensorAudioCollection from "./pages/SensorAudioCollection";
+import CameraVisualDataCollection from "./pages/CameraVisualDataCollection";
 import Tasking from "./pages/Tasking";
-import HistoryData from "./pages/HistoryData";
 import LiveData from "./pages/LiveData";
+import History from "./pages/History";
 import SettingsPage from './pages/SettingsPage';
-
 import Home from "./pages/Home";
-import NoPageFound from "./pages/NoPageFound"; // Optional: Handle 404
+import NoPageFound from "./pages/NoPageFound";
+import AgentTracker from "./pages/AgentTracker";
+import Ros2Agents from "./pages/Ros2Agents";
+
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
 function AppRouter() {
@@ -16,13 +18,15 @@ function AppRouter() {
       <Routes>
         <Route path="/" element={<MainHub />}>
           <Route index element={<Home />} />
-          <Route path="historydata" element={<HistoryData />} />
+          <Route path="history" element={<History />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="livedata" element={<LiveData />} />
-          <Route path="sensor-audio" element={<SensorAudioCollection />} /> {/* Corrected path */}
-          <Route path="camera-visual" element={<CameraVisualDataCollection />} /> {/* Corrected path */}
+          <Route path="sensor-audio" element={<SensorAudioCollection />} />
+          <Route path="camera-visual" element={<CameraVisualDataCollection />} />
           <Route path="tasking" element={<Tasking />} />
-          <Route path="*" element={<NoPageFound />} /> {/* Optional: Handle 404 */}
+          <Route path="tracker" element={<AgentTracker />} />  {/* Added real-time tracking page */}
+          <Route path="ros2agents" element={<Ros2Agents />} /> {/* Add Ros2Agents route */}
+          <Route path="*" element={<NoPageFound />} />
         </Route>
       </Routes>
     </Router>

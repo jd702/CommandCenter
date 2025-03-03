@@ -1,5 +1,6 @@
 import React from "react";
 import { styled, useTheme } from "@mui/material/styles";
+import Ros2Agents from './Ros2Agents'; // Import the ROS2Agents component
 import MuiAppBar from "@mui/material/AppBar";
 import MuiDrawer from "@mui/material/Drawer";
 import {
@@ -35,6 +36,12 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import InfoIcon from '@mui/icons-material/Info';
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import HelpIcon from '@mui/icons-material/Help';
+import History from './History'; // Import the History component
+import Tasking from './Tasking'; // Import other components as needed
+import SettingsPage from './SettingsPage'; // Import other components as needed
+import AgentTracker from './AgentTracker'; //  Import the Agent Tracker component
+import RobotIcon from '@mui/icons-material/SmartToy'; // Import the robot icon
+
 const drawerWidth = 240;
 
 const sideBar = [
@@ -46,53 +53,55 @@ const sideBar = [
   },
   {
     index: 1,
-    name: "History Data",
-    path: "/historydata",
-    icon: <HistoryIcon />,
-  },
-  {
-    index: 2,
-    name: "Live Data",
-    path: "/livedata",
+    name: "Sensor Audio Collection",
+    path: "/sensor-audio",
     icon: <PodcastsIcon />,
   },
   {
-    index: 3,
-    name: "Sensor Audio Collection",
-    path: "/sensor-audio",
-    icon: <BarChartIcon />,
-  },
-  {
-    index: 4,
+    index: 2,
     name: "Camera Visual Data Collection",
     path: "/camera-visual",
     icon: <BarChartIcon />,
   },
   {
-    index: 5,
+    index: 3,
     name: "Tasking",
     path: "/tasking",
     icon: <AssignmentIcon />,
   },
   {
-    index: 6,
+    index: 4,
     name: "Settings",
-  path: "/settings",
-  icon: <SettingsIcon />,
-},
+    path: "/settings",
+    icon: <SettingsIcon />,
+  },
+  {
+    index: 5,
+    name: "History Data",
+    path: "/history",
+    icon: <HistoryIcon />,
+  },
+  { 
+    index: 6, 
+    name: "Agent Tracker", 
+    path: "/tracker", 
+    icon: <DashboardIcon /> 
+  },
+  { 
+    index: 7, 
+    name: "ROS2 Agents", 
+    path: "/ros2agents", 
+    icon: <RobotIcon /> 
+  },
 ];
 
 const openedMixin = (theme) => ({
-    transition: theme.transitions.create("width", {
-
+  transition: theme.transitions.create("width", {
     easing: theme.transitions.easing.sharp,
-
-     duration: theme.transitions.duration.enteringScreen,
-
-    }),
-
-  })
-
+    duration: theme.transitions.duration.enteringScreen,
+  }),
+  width: drawerWidth,
+});
 
 const closedMixin = (theme) => ({
   transition: theme.transitions.create("width", {
