@@ -7,9 +7,9 @@ import History from "./pages/History";
 import SettingsPage from './pages/SettingsPage';
 import Home from "./pages/Home";
 import NoPageFound from "./pages/NoPageFound";
-import AgentTracker from "./pages/AgentTracker";
+import DataTransformation from "./pages/DataTransformation";
 import Ros2Agents from "./pages/Ros2Agents";
-
+import AgentTracker from "./pages/AgentTracker"
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 
 function AppRouter() {
@@ -24,8 +24,9 @@ function AppRouter() {
           <Route path="sensor-audio" element={<SensorAudioCollection />} />
           <Route path="camera-visual" element={<CameraVisualDataCollection />} />
           <Route path="tasking" element={<Tasking />} />
-          <Route path="tracker" element={<AgentTracker />} />  {/* Added real-time tracking page */}
-          <Route path="ros2agents" element={<Ros2Agents />} /> {/* Add Ros2Agents route */}
+          <Route path="data-transformation" element={<DataTransformation />} />
+          <Route path="Ros2Agents" element={<Ros2Agents />} />
+          <Route path="agent-tracker" element={<AgentTracker />} />
           <Route path="*" element={<NoPageFound />} />
         </Route>
       </Routes>
@@ -34,6 +35,7 @@ function AppRouter() {
 }
 
 export default AppRouter;
+
 
 /* import { Route, BrowserRouter as Router, Routes, Outlet } from "react-router-dom";
 import LayoutPage from "./pages/layout/LayoutPage";

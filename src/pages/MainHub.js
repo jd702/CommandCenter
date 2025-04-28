@@ -39,8 +39,10 @@ import HelpIcon from '@mui/icons-material/Help';
 import History from './History'; // Import the History component
 import Tasking from './Tasking'; // Import other components as needed
 import SettingsPage from './SettingsPage'; // Import other components as needed
-import AgentTracker from './AgentTracker'; //  Import the Agent Tracker component
+
 import RobotIcon from '@mui/icons-material/SmartToy'; // Import the robot icon
+import AugmentorUploader from "./DataTransformation";
+import { CameraAltRounded, RadioButtonChecked } from "@mui/icons-material";
 
 const drawerWidth = 240;
 
@@ -81,18 +83,24 @@ const sideBar = [
     path: "/history",
     icon: <HistoryIcon />,
   },
-  { 
-    index: 6, 
-    name: "Agent Tracker", 
-    path: "/tracker", 
-    icon: <DashboardIcon /> 
+  {
+    index: 6,
+    name: "Data Transformation",
+    path: "/data-transformation",
+    icon: <CameraAltRounded />,
   },
-  { 
-    index: 7, 
-    name: "ROS2 Agents", 
-    path: "/ros2agents", 
-    icon: <RobotIcon /> 
+  {
+    index: 7,
+    name: "ROS2 Agents",
+    path: "/Ros2Agents",
+    icon: <RobotIcon />,
   },
+  {
+    index: 8,
+    name: "Agent Tracker",
+    path: "/agent-tracker",
+    icon: <RadioButtonChecked />,
+  },  
 ];
 
 const openedMixin = (theme) => ({
@@ -320,6 +328,13 @@ const MainHub = () => {
                   <Button variant="contained" color="primary" component={Link} to="/sensor-audio" className="button">
                     Go to Sensor Audio Collection
                   </Button>
+                  <Button component={Link} to="/augmentor" variant="contained">Data Transformation</Button>
+                  <Button variant="contained" color="primary" component={Link} to="/tasking" className="button">
+                    Go to Tasking 
+                  </Button>
+                  <Button variant="contained" color="primary" component={Link} to="/history" className="button">
+                    Go to History Data
+                    </Button>
                   <Button variant="contained" color="secondary" component={Link} to="/camera-visual" className="button">
                     Go to Camera Visual Data Collection
                   </Button>

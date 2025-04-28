@@ -9,180 +9,248 @@ import {
   CardContent,
   Select,
   MenuItem,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 
-// Base Flask API URL (Update if needed)
 const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
 
-// 🔹 Modular Framework for Multiple Agents
 const agents = {
   ghost: {
     name: "Ghost Robotics",
     commands: {
-      "Manual Twist": "/mcu/command/manual_twist",
-      "Remote Twist": "/mcu/command/remote_twist",
-      "Come Home": "/command/come_home",
-      "Dock": "/command/dock",
-      "Undock": "/command/undock",
-      "Cancel Mission": "/command/cancel_mission",
-      "Start Mission": "/command/start_mission",
-      "Pause Mission": "/command/pause_mission",
-      "Unpause Mission": "/command/unpause_mission",
-      "Set EStop": "/command/setEStop",
-      "Play Sound": "/command/play_sound",
-      "Record Route": "/command/record_route",
-      "Return to Start": "/command/return_to_start",
-      "Set Control Mode": "/command/setControlMode",
-      "Set Robot Mode": "/command/setRobotMode",
-      "Sit": "/command/setRobotMode",
-      "Stand": "/command/setRobotMode",
-      "GPS Route": "/command/gps_route",
-      "Send Goal": "/move_base_simple/goal",
+      "Move Forward": "/command/move_forward",
+      "Move Backward": "/command/move_backward",
+      "Move Left": "/command/move_left",
+      "Move Right": "/command/move_right",
+      "Turn Left": "/command/turn_left",
+      "Turn Right": "/command/turn_right",
+      "Stop": "/command/stop",
+      "Sit": "/command/setAction",
+      "Stand": "/command/setAction",
+      "Walk": "/command/setAction",
+      "Enter Manual Mode": "/command/setControlMode",
+      "Return to Original Mode": "/command/return_to_original_mode",
+
     },
     cameras: {
-      "Front Left": "/argus/ar0234_front_left/image_raw",
-      "Front Right": "/argus/ar0234_front_right/image_raw",
-      "Rear": "/argus/ar0234_rear/image_raw",
-      "Side Left": "/argus/ar0234_side_left/image_raw",
-      "Side Right": "/argus/ar0234_side_right/image_raw",
-    },
-    sensors: {
-      "IMU Data": "/gx5/imu/data",
-      "GPS Data": "/gps_addon/fix",
-      "Battery Status": "/mcu/state/battery",
-    },
-  },
-  husky: {
-    name: "Husky (ROS1)",
-    commands: {
-      "Move Forward": "/husky/cmd_vel",
-      "Move Backward": "/husky/cmd_vel",
-      "Turn Left": "/husky/cmd_vel",
-      "Turn Right": "/husky/cmd_vel",
-    },
-  },
-  jackal: {
-    name: "Jackal (ROS1)",
-    commands: {
-      "Move Forward": "/jackal/cmd_vel",
-      "Move Backward": "/jackal/cmd_vel",
-      "Turn Left": "/jackal/cmd_vel",
-      "Turn Right": "/jackal/cmd_vel",
-    },
-  },
-  spot: {
-    name: "Spot (ROS2)",
-    commands: {
-      "Move Forward": "/spot/cmd_vel",
-      "Move Backward": "/spot/cmd_vel",
-      "Turn Left": "/spot/cmd_vel",
-      "Turn Right": "/spot/cmd_vel",
+      "Front Left": "front_left",
+      "Front Left Rect": "front_left_rect",
+      "Front Left Scaled": "front_left_scaled",
+      "Front Left Zoom x2": "front_left_zoomx2",
+      "Front Left Zoom x4": "front_left_zoomx4",
+
+      "Front Right": "front_right",
+      "Front Right Rect": "front_right_rect",
+      "Front Right Scaled": "front_right_scaled",
+      "Front Right Zoom x2": "front_right_zoomx2",
+      "Front Right Zoom x4": "front_right_zoomx4",
+
+      "Rear": "rear",
+      "Rear Rect": "rear_rect",
+      "Rear Scaled": "rear_scaled",
+      "Rear Zoom x2": "rear_zoomx2",
+      "Rear Zoom x4": "rear_zoomx4",
+
+      "Side Left": "side_left",
+      "Side Left Rect": "side_left_rect",
+      "Side Left Scaled": "side_left_scaled",
+      "Side Left Zoom x2": "side_left_zoomx2",
+      "Side Left Zoom x4": "side_left_zoomx4",
+
+      "Side Right": "side_right",
+      "Side Right Rect": "side_right_rect",
+      "Side Right Scaled": "side_right_scaled",
+      "Side Right Zoom x2": "side_right_zoomx2",
+      "Side Right Zoom x4": "side_right_zoomx4",
     },
   },
 };
 
-// 🔹 Send a command via the Flask API
-const sendCommand = async (agent, topic, params = {}) => {
-  console.log(`Sending command to ${agent}:`, topic, params);
-
-  try {
-    const response = await fetch(`${FLASK_API_BASE_URL}/command`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        agent,
-        topic,
-        command: params,
-      }),
-    });
-
-    if (!response.ok) throw new Error(`Command failed: ${response.status}`);
-
-    const result = await response.json();
-    console.log("Command result:", result);
-  } catch (error) {
-    console.error("Error sending command:", error);
-  }
+const predefinedCommands = {
+  "Move Forward (5s)": JSON.stringify(
+    { topic: "/command/move_forward", command: { duration: 5 } },
+    null,
+    2
+  ),
+  "Turn Left (3s)": JSON.stringify(
+    { topic: "/command/turn_left", command: { duration: 3 } },
+    null,
+    2
+  ),
+  "Sit Action": JSON.stringify(
+    { topic: "/command/setAction", command: { action: "sit" } },
+    null,
+    2
+  ),
+  "Stand Action": JSON.stringify(
+    { topic: "/command/setAction", command: { action: "stand" } },
+    null,
+    2
+  ),
+  "Start Mission": JSON.stringify(
+    { topic: "/command/start_mission" },
+    null,
+    2
+  ),
+  "Stop Mission": JSON.stringify(
+    { topic: "/command/stop_mission" },
+    null,
+    2
+  ),
+  "Enable Vision Mode": JSON.stringify(
+    { topic: "/command/enable_vision_mode" },
+    null,
+    2
+  ),
+  "Move Left (3s)": JSON.stringify(
+    { topic: "/command/move_left", command: { duration: 3 } },
+    null,
+    2
+  ),
+  "Move Right (3s)": JSON.stringify(
+    { topic: "/command/move_right", command: { duration: 3 } },
+    null,
+    2
+  ),
 };
 
 function Ros2Agents() {
   const [selectedAgent, setSelectedAgent] = useState("ghost");
-  const [customCommand, setCustomCommand] = useState("");
   const [selectedCamera, setSelectedCamera] = useState("Front Left");
-  const [selectedSensor, setSelectedSensor] = useState("IMU Data");
-  const [robotStatus, setRobotStatus] = useState("Unknown");
-  const [robotPosition, setRobotPosition] = useState({ x: 0, y: 0, z: 0 });
-  const [alerts, setAlerts] = useState([]);
-  const [diagnostics, setDiagnostics] = useState([]);
+  const [batteryStatus, setBatteryStatus] = useState("Unknown");
+  const [gpsData, setGpsData] = useState({ lat: 0, lng: 0 });
+  const [commandInput, setCommandInput] = useState("");
+  const [movementDuration, setMovementDuration] = useState(1);
+  const [selectedPredefinedCommand, setSelectedPredefinedCommand] =
+    useState("");
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
-  
-  const agentData = agents[selectedAgent];
+  const [viewMode, setViewMode] = useState("stream");
+  const [feedback, setFeedback] = useState({
+    open: false,
+    message: "",
+    severity: "info",
+  });
 
-  // Fetch robot status & position
   useEffect(() => {
-    const fetchStatus = async () => {
+    const basePath =
+      viewMode === "stream"
+        ? "/proxy_camera_feed"
+        : "/proxy_camera_snapshot";
+
+    setVideoStreamUrl(
+      `${FLASK_API_BASE_URL}${basePath}/${agents[selectedAgent].cameras[selectedCamera]}`
+    );
+  }, [selectedCamera, selectedAgent, viewMode]);
+
+  useEffect(() => {
+    const fetchBatteryStatus = async () => {
       try {
         const response = await fetch(`${FLASK_API_BASE_URL}/status`);
-        if (!response.ok) throw new Error("Failed to fetch status");
-
         const data = await response.json();
-        setRobotStatus(data.agents?.[selectedAgent] || "Unknown");
-        setRobotPosition(data.position?.[selectedAgent] || { x: 0, y: 0, z: 0 });
+        setBatteryStatus(data.battery?.ghost || "Unknown");
       } catch (error) {
-        console.error("Error fetching robot data:", error);
+        console.error("Error fetching battery status:", error);
       }
     };
-
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 5000);
-    return () => clearInterval(interval);
-  }, [selectedAgent]);
-
-  // Fetch alerts & diagnostics
-  useEffect(() => {
-    const fetchAlertsAndDiagnostics = async () => {
-      try {
-        const alertsResponse = await fetch(`${FLASK_API_BASE_URL}/alerts`);
-        const diagnosticsResponse = await fetch(`${FLASK_API_BASE_URL}/diagnostics`);
-        if (!alertsResponse.ok || !diagnosticsResponse.ok) throw new Error("Failed to fetch alerts/diagnostics");
-
-        const alertsData = await alertsResponse.json();
-        const diagnosticsData = await diagnosticsResponse.json();
-
-        setAlerts(alertsData.alerts || []);
-        setDiagnostics(diagnosticsData.diagnostics || []);
-      } catch (error) {
-        console.error("Error fetching alerts/diagnostics:", error);
-      }
-    };
-
-    fetchAlertsAndDiagnostics();
-    const interval = setInterval(fetchAlertsAndDiagnostics, 10000);
+    fetchBatteryStatus();
+    const interval = setInterval(fetchBatteryStatus, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // Handle predefined commands
-  const handlePredefinedCommand = (commandName) => {
-    const topic = agentData.commands[commandName];
-    let params = {};
+  useEffect(() => {
+    const fetchGpsData = async () => {
+      try {
+        const response = await fetch(`${FLASK_API_BASE_URL}/gps`);
+        const data = await response.json();
+        if (data.ghost) {
+          setGpsData({ lat: data.ghost.latitude, lng: data.ghost.longitude });
+        }
+      } catch (error) {
+        console.error("Error fetching GPS data:", error);
+      }
+    };
+    fetchGpsData();
+    const interval = setInterval(fetchGpsData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
-    if (commandName === "Sit") params = { mode: "sit" };
-    else if (commandName === "Stand") params = { mode: "stand" };
-    else if (commandName.includes("Move Forward")) params = { linear: { x: 1, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0 } };
-    else if (commandName.includes("Move Backward")) params = { linear: { x: -1, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 0 } };
-    else if (commandName.includes("Turn Left")) params = { linear: { x: 0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: 1 } };
-    else if (commandName.includes("Turn Right")) params = { linear: { x: 0, y: 0, z: 0 }, angular: { x: 0, y: 0, z: -1 } };
+  const sendCommand = async (agent, topic, params = {}) => {
+    try {
+      const response = await fetch(`${FLASK_API_BASE_URL}/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, command: params }),
+      });
+      const result = await response.json();
+      setFeedback({
+        open: true,
+        message: result.message || "Command sent!",
+        severity: response.ok ? "success" : "error",
+      });
+    } catch (error) {
+      setFeedback({
+        open: true,
+        message: "Failed to send command.",
+        severity: "error",
+      });
+    }
+  };
 
-    sendCommand(selectedAgent, topic, params);
+  const enableVisionMode = async () => {
+    try {
+      const response = await fetch(
+        `${FLASK_API_BASE_URL}/command/enable_vision_mode`,
+        {
+          method: "POST",
+        }
+      );
+      const result = await response.json();
+      setFeedback({
+        open: true,
+        message: result.message || "Vision mode triggered.",
+        severity: response.ok ? "success" : "error",
+      });
+    } catch (error) {
+      setFeedback({
+        open: true,
+        message: "Error enabling vision mode.",
+        severity: "error",
+      });
+    }
+  };
+
+  const handleCommandSubmit = (e) => {
+    e.preventDefault();
+    if (commandInput.trim() !== "") {
+      try {
+        const parsedCommand = JSON.parse(commandInput);
+        sendCommand(selectedAgent, parsedCommand.topic, parsedCommand.command);
+        setCommandInput("");
+      } catch (error) {
+        setFeedback({
+          open: true,
+          message: "Invalid JSON format.",
+          severity: "error",
+        });
+      }
+    }
   };
 
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4">ROS 2 Agent Control Center</Typography>
+      <Typography variant="h6">Battery Status: {batteryStatus}%</Typography>
+      <Typography variant="h6">
+        GPS: Lat {gpsData.lat}, Lng {gpsData.lng}
+      </Typography>
 
       <Box mb={3}>
         <Typography variant="h6">Select Agent:</Typography>
-        <Select value={selectedAgent} onChange={(e) => setSelectedAgent(e.target.value)}>
+        <Select
+          value={selectedAgent}
+          onChange={(e) => setSelectedAgent(e.target.value)}
+        >
           {Object.keys(agents).map((agent) => (
             <MenuItem key={agent} value={agent}>
               {agents[agent].name}
@@ -191,74 +259,153 @@ function Ros2Agents() {
         </Select>
       </Box>
 
+      <Box mb={3}>
+        <Typography variant="h6">Live Camera Feed:</Typography>
+        <Select
+          value={selectedCamera}
+          onChange={(e) => setSelectedCamera(e.target.value)}
+        >
+          {Object.keys(agents[selectedAgent].cameras).map((cam) => (
+            <MenuItem key={cam} value={cam}>
+              {cam}
+            </MenuItem>
+          ))}
+        </Select>
+
+        <Button
+          variant="outlined"
+          sx={{ my: 2 }}
+          onClick={() =>
+            setViewMode((prev) => (prev === "stream" ? "snapshot" : "stream"))
+          }
+        >
+          Switch to {viewMode === "stream" ? "Snapshot" : "Live Stream"} View
+        </Button>
+
+        <Box mt={2}>
+          <img
+            src={videoStreamUrl}
+            alt="Camera Feed"
+            width="1920"
+            height="1080"
+            style={{ border: "1px solid black" }}
+            onError={() =>
+              setFeedback({
+                open: true,
+                message: "Failed to load camera feed.",
+                severity: "error",
+              })
+            }
+          />
+        </Box>
+      </Box>
+
       <Grid container spacing={4}>
         <Grid item xs={12}>
           <Card>
             <CardContent>
-              <Typography variant="h5">{agentData.name}</Typography>
-              <Typography>Status: {robotStatus}</Typography>
-              <Typography>Position: X={robotPosition.x}, Y={robotPosition.y}, Z={robotPosition.z}</Typography>
-
+              <Typography variant="h5">{agents[selectedAgent].name}</Typography>
               <Box mt={3}>
-                <Typography variant="h6">Movement Controls</Typography>
-                {["Move Forward", "Move Backward", "Turn Left", "Turn Right"].map((cmd) => (
-                  <Button key={cmd} variant="contained" onClick={() => handlePredefinedCommand(cmd)}>
+                <Typography variant="h6">Control Commands</Typography>
+
+                <TextField
+                  type="number"
+                  label="Movement Duration (seconds)"
+                  variant="outlined"
+                  value={movementDuration}
+                  onChange={(e) =>
+                    setMovementDuration(Number(e.target.value))
+                  }
+                  sx={{ mb: 2, width: "200px" }}
+                  inputProps={{ min: 1, max: 10 }}
+                />
+
+                {Object.keys(agents[selectedAgent].commands).map((cmd) => (
+                  <Button
+                    key={cmd}
+                    variant="contained"
+                    sx={{ m: 1 }}
+                    onClick={() =>
+                      sendCommand(
+                        selectedAgent,
+                        agents[selectedAgent].commands[cmd],
+                        {
+                          action: ["Sit", "Stand", "Walk"].includes(cmd)
+                            ? cmd.toLowerCase()
+                            : undefined,
+                          duration:
+                            ["Move Forward", "Move Backward", "Move Left", "Move Right", "Turn Left", "Turn Right"].includes(
+                              cmd
+                            )
+                              ? movementDuration
+                              : undefined,
+                        }
+                      )
+                    }
+                  >
                     {cmd}
                   </Button>
                 ))}
+
+                <Button
+                  variant="outlined"
+                  color="secondary"
+                  sx={{ m: 1 }}
+                  onClick={enableVisionMode}
+                >
+                  Enable Vision Obstacle Avoidance
+                </Button>
               </Box>
             </CardContent>
           </Card>
         </Grid>
-
-        {/* Predefined Commands */}
-        <Box mt={3}>
-          <Typography variant="subtitle1">Commands</Typography>
-          <Grid container spacing={2}>
-            {Object.keys(agentData.commands).map((cmd) => (
-              <Grid item key={cmd}>
-                <Button variant="contained" onClick={() => handlePredefinedCommand(cmd)}>
-                  {cmd}
-                </Button>
-              </Grid>
-            ))}
-          </Grid>
-        </Box>
-
-        {/* Camera Feeds */}
-        <Box mt={3}>
-          <Typography variant="h6">Live Video Feed</Typography>
-          <Select value={selectedCamera} onChange={(e) => setSelectedCamera(e.target.value)}>
-            {Object.keys(agentData.cameras).map((cam) => (
-              <MenuItem key={cam} value={cam}>{cam}</MenuItem>
-            ))}
-          </Select>
-          <Box mt={2}>
-            <img
-              src={`${FLASK_API_BASE_URL}/camera_feed?topic=${agentData.cameras[selectedCamera]}`}
-              alt="Robot Camera"
-              width="640"
-              height="480"
-              onError={(e) => {
-                console.error("Error loading camera feed:", e);
-                e.target.src = "path/to/placeholder/image.png"; // Fallback image
-              }}
-            />
-          </Box>
-        </Box>
-
-        {/* Sensor Data */}
-        <Box mt={3}>
-          <Typography variant="h6">Sensor Data</Typography>
-          <Select value={selectedSensor} onChange={(e) => setSelectedSensor(e.target.value)}>
-            {Object.keys(agentData.sensors).map((sensor) => (
-              <MenuItem key={sensor} value={sensor}>
-                {sensor}
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
       </Grid>
+
+      <Box mt={3}>
+        <Typography variant="h6">Command Terminal</Typography>
+        <Select
+          value={selectedPredefinedCommand}
+          onChange={(e) => {
+            setSelectedPredefinedCommand(e.target.value);
+            setCommandInput(predefinedCommands[e.target.value]);
+          }}
+        >
+          <MenuItem value="">Select Predefined Command</MenuItem>
+          {Object.keys(predefinedCommands).map((cmd) => (
+            <MenuItem key={cmd} value={cmd}>
+              {cmd}
+            </MenuItem>
+          ))}
+        </Select>
+
+        <form onSubmit={handleCommandSubmit}>
+          <TextField
+            fullWidth
+            variant="outlined"
+            multiline
+            rows={4}
+            placeholder="Enter JSON command here..."
+            value={commandInput}
+            onChange={(e) => setCommandInput(e.target.value)}
+          />
+          <Button type="submit" variant="contained" sx={{ mt: 2 }}>
+            Send Command
+          </Button>
+        </form>
+      </Box>
+
+      <Snackbar
+        open={feedback.open}
+        autoHideDuration={4000}
+        onClose={() => setFeedback({ ...feedback, open: false })}
+      >
+        <Alert
+          severity={feedback.severity}
+          onClose={() => setFeedback({ ...feedback, open: false })}
+        >
+          {feedback.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

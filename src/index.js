@@ -11,11 +11,12 @@ import NoPageFound from "./pages/NoPageFound";
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import SettingsPage from "./pages/SettingsPage";
 import History from "./pages/History";
-import AgentTracker from "./pages/AgentTracker";  // ✅ Import AgentTracker
-import Ros2Agents from "./pages/Ros2Agents";  // ✅ Import Ros2Agents
 import { IpProvider } from './context/IpContext';
 import { IpProvider2 } from './context/IpContext2';
 import { CommandListProvider } from './context/CommandListContext';
+import DataTransformation from './pages/DataTransformation';
+import Ros2Agents from "./pages/Ros2Agents";
+import AgentTracker from "./pages/AgentTracker";
 
 const theme = createTheme({
     palette: {
@@ -41,9 +42,11 @@ function AppRouter() {
                   <Route path="tasking" element={<Tasking />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="history" element={<History />} />
-                  <Route path="tracker" element={<AgentTracker />} />  
-                  <Route path="ros2agents" element={<Ros2Agents />} />  
                   <Route path="*" element={<NoPageFound />} />
+                  <Route path="data-transformation" element={<DataTransformation />} />
+                  <Route path="Ros2Agents" element={<Ros2Agents />} />
+                  <Route path="agent-tracker" element={<AgentTracker />} />
+
                 </Route>
               </Routes>
             </Router>
