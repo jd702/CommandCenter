@@ -18,6 +18,11 @@ import DataTransformation from './pages/DataTransformation';
 import Ros2Agents from "./pages/Ros2Agents";
 import AgentTracker from "./pages/AgentTracker";
 
+// Polyfill TouchEvent for environments that lack it (e.g., some dev tools or SSR)
+if (typeof window !== 'undefined' && typeof window.TouchEvent === 'undefined') {
+  window.TouchEvent = function () {};
+}
+
 const theme = createTheme({
     palette: {
         mode: 'light',
