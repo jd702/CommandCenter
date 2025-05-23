@@ -124,6 +124,7 @@ function Ros2Agents() {
   const [movementDuration, setMovementDuration] = useState(1);
   const [selectedPredefinedCommand, setSelectedPredefinedCommand] =
     useState("");
+  const [autoSnapshot, setAutoSnapshot] = useState(false);
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
   const [viewMode, setViewMode] = useState("stream");
   const [feedback, setFeedback] = useState({
@@ -133,16 +134,36 @@ function Ros2Agents() {
   });
 
   useEffect(() => {
-    const basePath =
-      viewMode === "stream"
-        ? "/proxy_camera_feed"
-        : "/proxy_camera_snapshot";
-
-    setVideoStreamUrl(
-      `${FLASK_API_BASE_URL}${basePath}/${agents[selectedAgent].cameras[selectedCamera]}`
-    );
-  }, [selectedCamera, selectedAgent, viewMode]);
-
+    let interval; // To store interval reference for cleanup
+  
+    // Helper function: fetches snapshot image and forces URL update to prevent browser caching
+    const fetchSnapshot = () => {
+      const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+      setVideoStreamUrl(url); // Update React state to re-render image
+    };
+  
+    if (viewMode === "stream") {
+      // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
+      // Creates a realistic, smooth video-like effect (4 fps)
+      fetchSnapshot(); // Initial immediate fetch
+      interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
+    } else if (viewMode === "snapshot") {
+      // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
+      fetchSnapshot();
+  
+      if (autoSnapshot) {
+        // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
+        interval = setInterval(fetchSnapshot, 2000);
+      }
+      // Else: no interval set, snapshot stays static unless manually refreshed by the user
+    }
+  
+    // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
+    return () => clearInterval(interval);
+  }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
+  
+  
+  
   useEffect(() => {
     const fetchBatteryStatus = async () => {
       try {
@@ -236,7 +257,6 @@ function Ros2Agents() {
       }
     }
   };
-
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4">ROS 2 Agent Control Center</Typography>
@@ -244,7 +264,7 @@ function Ros2Agents() {
       <Typography variant="h6">
         GPS: Lat {gpsData.lat}, Lng {gpsData.lng}
       </Typography>
-
+  
       <Box mb={3}>
         <Typography variant="h6">Select Agent:</Typography>
         <Select
@@ -258,7 +278,7 @@ function Ros2Agents() {
           ))}
         </Select>
       </Box>
-
+  
       <Box mb={3}>
         <Typography variant="h6">Live Camera Feed:</Typography>
         <Select
@@ -271,7 +291,7 @@ function Ros2Agents() {
             </MenuItem>
           ))}
         </Select>
-
+  
         <Button
           variant="outlined"
           sx={{ my: 2 }}
@@ -281,7 +301,31 @@ function Ros2Agents() {
         >
           Switch to {viewMode === "stream" ? "Snapshot" : "Live Stream"} View
         </Button>
-
+  
+        {viewMode === "snapshot" && (
+          <>
+            <Button
+              variant="contained"
+              sx={{ mx: 1 }}
+              onClick={() => {
+                const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+                setVideoStreamUrl(url);
+              }}
+            >
+              Refresh Snapshot
+            </Button>
+  
+            <Button
+              variant={autoSnapshot ? "contained" : "outlined"}
+              color={autoSnapshot ? "success" : "primary"}
+              sx={{ mx: 1 }}
+              onClick={() => setAutoSnapshot((prev) => !prev)}
+            >
+              {autoSnapshot ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
+            </Button>
+          </>
+        )}
+  
         <Box mt={2}>
           <img
             src={videoStreamUrl}
@@ -298,8 +342,7 @@ function Ros2Agents() {
             }
           />
         </Box>
-      </Box>
-
+      </Box>  
       <Grid container spacing={4}>
         <Grid item xs={12}>
           <Card>

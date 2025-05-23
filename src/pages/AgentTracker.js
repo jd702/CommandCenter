@@ -1,4 +1,168 @@
 import React, { useState, useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import axios from "axios";
+import {
+  Grid,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Divider,
+} from "@mui/material";
+
+import markerIconPng from "leaflet/dist/images/marker-icon.png";
+import markerShadowPng from "leaflet/dist/images/marker-shadow.png";
+
+const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
+
+const customIcon = new L.Icon({
+  iconUrl: markerIconPng,
+  shadowUrl: markerShadowPng,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+const BOWIE_CS_BUILDING = [39.0193, -76.7478];
+
+function DynamicMapMarker({ gps, icon }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (gps?.latitude && gps?.longitude) {
+      map.flyTo([gps.latitude, gps.longitude], map.getZoom(), {
+        duration: 1.5,
+      });
+    }
+  }, [gps, map]);
+
+  return gps?.latitude && gps?.longitude ? (
+    <Marker position={[gps.latitude, gps.longitude]} icon={icon}>
+      <Popup>
+        <strong>Ghost Robotics</strong>
+        <br />
+        Lat: {gps.latitude.toFixed(5)}
+        <br />
+        Lng: {gps.longitude.toFixed(5)}
+      </Popup>
+    </Marker>
+  ) : null;
+}
+
+const AgentTracker = () => {
+  const [gps, setGps] = useState({});
+  const [battery, setBattery] = useState("N/A");
+  const [status, setStatus] = useState("Unknown");
+  const [imu, setImu] = useState({});
+  const [odom, setOdom] = useState({});
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [gpsRes, statusRes, imuRes, odomRes] = await Promise.all([
+          axios.get(`${FLASK_API_BASE_URL}/gps`),
+          axios.get(`${FLASK_API_BASE_URL}/status`),
+          axios.get(`${FLASK_API_BASE_URL}/imu`),
+          axios.get(`${FLASK_API_BASE_URL}/odom`),
+        ]);
+
+        setGps(gpsRes.data.ghost);
+        setBattery(statusRes.data.battery.ghost);
+        setStatus(statusRes.data.agents.ghost);
+        setImu(imuRes.data.ghost || {});
+        setOdom(odomRes.data.ghost || {});
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h4" gutterBottom>
+        Agent Live Tracker
+      </Typography>
+
+      <MapContainer
+        center={BOWIE_CS_BUILDING}
+        zoom={18}
+        style={{ height: "600px", width: "100%" }}
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+        />
+        <DynamicMapMarker gps={gps} icon={customIcon} />
+      </MapContainer>
+
+      <Grid container spacing={3} mt={2}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6">IMU Data</Typography>
+              <Divider sx={{ my: 1 }} />
+
+              <Typography fontWeight="bold">Orientation</Typography>
+              <Typography>X: {imu?.orientation?.x ?? "N/A"}</Typography>
+              <Typography>Y: {imu?.orientation?.y ?? "N/A"}</Typography>
+              <Typography>Z: {imu?.orientation?.z ?? "N/A"}</Typography>
+              <Typography>W: {imu?.orientation?.w ?? "N/A"}</Typography>
+
+              <Typography fontWeight="bold" mt={2}>
+                Angular Velocity
+              </Typography>
+              <Typography>X: {imu?.angular_velocity?.x ?? "N/A"}</Typography>
+              <Typography>Y: {imu?.angular_velocity?.y ?? "N/A"}</Typography>
+              <Typography>Z: {imu?.angular_velocity?.z ?? "N/A"}</Typography>
+
+              <Typography fontWeight="bold" mt={2}>
+                Linear Acceleration
+              </Typography>
+              <Typography>X: {imu?.linear_acceleration?.x ?? "N/A"}</Typography>
+              <Typography>Y: {imu?.linear_acceleration?.y ?? "N/A"}</Typography>
+              <Typography>Z: {imu?.linear_acceleration?.z ?? "N/A"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6">Odometry</Typography>
+              <Divider sx={{ my: 1 }} />
+
+              <Typography fontWeight="bold">Position</Typography>
+              <Typography>X: {odom?.position?.x ?? "N/A"}</Typography>
+              <Typography>Y: {odom?.position?.y ?? "N/A"}</Typography>
+              <Typography>Z: {odom?.position?.z ?? "N/A"}</Typography>
+
+              <Typography fontWeight="bold" mt={2}>
+                Orientation
+              </Typography>
+              <Typography>X: {odom?.orientation?.x ?? "N/A"}</Typography>
+              <Typography>Y: {odom?.orientation?.y ?? "N/A"}</Typography>
+              <Typography>Z: {odom?.orientation?.z ?? "N/A"}</Typography>
+              <Typography>W: {odom?.orientation?.w ?? "N/A"}</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+};
+
+export default AgentTracker;
+
+
+
+/*import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -15,7 +179,7 @@ const customIcon = new L.Icon({
   iconSize: [25, 41], // default Leaflet icon size
   iconAnchor: [12, 41], // anchor point of the icon
   popupAnchor: [1, -34], // where the popup should appear
-  shadowSize: [41, 41],
+  shadowSize: [41, 41], 
 });
 
 const BOWIE_CS_BUILDING = [39.0193, -76.7478];
@@ -65,3 +229,4 @@ const AgentTracker = () => {
 };
 
 export default AgentTracker;
+*/
