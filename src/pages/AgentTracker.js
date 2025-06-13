@@ -59,6 +59,8 @@ const AgentTracker = () => {
   const [imu, setImu] = useState({});
   const [odom, setOdom] = useState({});
 
+
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -74,6 +76,11 @@ const AgentTracker = () => {
         setStatus(statusRes.data.agents.ghost);
         setImu(imuRes.data.ghost || {});
         setOdom(odomRes.data.ghost || {});
+
+        console.log("GPS Data:", gpsRes.data.ghost);
+        console.log("IMU:" , imuRes.data.ghost);
+        console.log("Odom:" , odomRes.data.ghost);
+
       } catch (error) {
         console.error("Error fetching data:", error);
       }
@@ -102,59 +109,45 @@ const AgentTracker = () => {
         <DynamicMapMarker gps={gps} icon={customIcon} />
       </MapContainer>
 
-      <Grid container spacing={3} mt={2}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6">IMU Data</Typography>
-              <Divider sx={{ my: 1 }} />
+      <Grid item xs={12} md={6}>
+  <Card>
+    <CardContent>
+      <Typography variant="h6">Odometry</Typography>
+      <Divider sx={{ my: 1 }} />
 
-              <Typography fontWeight="bold">Orientation</Typography>
-              <Typography>X: {imu?.orientation?.x ?? "N/A"}</Typography>
-              <Typography>Y: {imu?.orientation?.y ?? "N/A"}</Typography>
-              <Typography>Z: {imu?.orientation?.z ?? "N/A"}</Typography>
-              <Typography>W: {imu?.orientation?.w ?? "N/A"}</Typography>
+      <Typography fontWeight="bold">Position</Typography>
+      <Typography>X: {odom?.position?.x ?? "N/A"}</Typography>
+      <Typography>Y: {odom?.position?.y ?? "N/A"}</Typography>
+      <Typography>Z: {odom?.position?.z ?? "N/A"}</Typography>
 
-              <Typography fontWeight="bold" mt={2}>
-                Angular Velocity
-              </Typography>
-              <Typography>X: {imu?.angular_velocity?.x ?? "N/A"}</Typography>
-              <Typography>Y: {imu?.angular_velocity?.y ?? "N/A"}</Typography>
-              <Typography>Z: {imu?.angular_velocity?.z ?? "N/A"}</Typography>
+      <Typography fontWeight="bold" mt={2}>
+        Orientation
+      </Typography>
+      <Typography>X: {odom?.orientation?.x ?? "N/A"}</Typography>
+      <Typography>Y: {odom?.orientation?.y ?? "N/A"}</Typography>
+      <Typography>Z: {odom?.orientation?.z ?? "N/A"}</Typography>
+      <Typography>W: {odom?.orientation?.w ?? "N/A"}</Typography>
 
-              <Typography fontWeight="bold" mt={2}>
-                Linear Acceleration
-              </Typography>
-              <Typography>X: {imu?.linear_acceleration?.x ?? "N/A"}</Typography>
-              <Typography>Y: {imu?.linear_acceleration?.y ?? "N/A"}</Typography>
-              <Typography>Z: {imu?.linear_acceleration?.z ?? "N/A"}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+      <Typography fontWeight="bold" mt={2}>
+        Linear Velocity
+      </Typography>
+      <Typography>X: {odom?.twist?.linear?.x ?? "N/A"}</Typography>
+      <Typography>Y: {odom?.twist?.linear?.y ?? "N/A"}</Typography>
+      <Typography>Z: {odom?.twist?.linear?.z ?? "N/A"}</Typography>
 
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6">Odometry</Typography>
-              <Divider sx={{ my: 1 }} />
+      <Typography fontWeight="bold" mt={2}>
+        Angular Velocity
+      </Typography>
+      <Typography>X: {odom?.twist?.angular?.x ?? "N/A"}</Typography>
+      <Typography>Y: {odom?.twist?.angular?.y ?? "N/A"}</Typography>
+      <Typography>Z: {odom?.twist?.angular?.z ?? "N/A"}</Typography>
+    </CardContent>
+  </Card>
+</Grid>
 
-              <Typography fontWeight="bold">Position</Typography>
-              <Typography>X: {odom?.position?.x ?? "N/A"}</Typography>
-              <Typography>Y: {odom?.position?.y ?? "N/A"}</Typography>
-              <Typography>Z: {odom?.position?.z ?? "N/A"}</Typography>
-
-              <Typography fontWeight="bold" mt={2}>
-                Orientation
-              </Typography>
-              <Typography>X: {odom?.orientation?.x ?? "N/A"}</Typography>
-              <Typography>Y: {odom?.orientation?.y ?? "N/A"}</Typography>
-              <Typography>Z: {odom?.orientation?.z ?? "N/A"}</Typography>
-              <Typography>W: {odom?.orientation?.w ?? "N/A"}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
     </Box>
+
+    
   );
 };
 

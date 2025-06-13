@@ -12,6 +12,7 @@ import {
   Snackbar,
   Alert,
 } from "@mui/material";
+import PointCloudViewer from "./PointCloudViewer";
 
 const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
 
@@ -31,6 +32,11 @@ const agents = {
       "Walk": "/command/setAction",
       "Enter Manual Mode": "/command/setControlMode",
       "Return to Original Mode": "/command/return_to_original_mode",
+      "E-Stop": "/command/setEStop",
+      "Roll Over": "/command/setRollOver",
+      "Run Mode": "/command/setRun",
+      "Set Gait (Walk)": "/command/setGait",
+
 
     },
     cameras: {
@@ -113,7 +119,35 @@ const predefinedCommands = {
     null,
     2
   ),
+
+  // UInt32-style commands
+  "Emergency Stop": JSON.stringify(
+    { topic: "/command/setEStop", command: 1 },
+    null,
+    2
+  ),
+  "Run Mode": JSON.stringify(
+    { topic: "/command/setRun", command: 1 },
+    null,
+    2
+  ),
+  "Set Gait to Crawl": JSON.stringify(
+    { topic: "/command/setGait", command: 0 },
+    null,
+    2
+  ),
+  "Set Gait to Trot": JSON.stringify(
+    { topic: "/command/setGait", command: 1 },
+    null,
+    2
+  ),
+  "Set Gait to Gallop": JSON.stringify(
+    { topic: "/command/setGait", command: 2 },
+    null,
+    2
+  ),
 };
+
 
 function Ros2Agents() {
   const [selectedAgent, setSelectedAgent] = useState("ghost");
@@ -124,7 +158,12 @@ function Ros2Agents() {
   const [movementDuration, setMovementDuration] = useState(1);
   const [selectedPredefinedCommand, setSelectedPredefinedCommand] =
     useState("");
+  
   const [autoSnapshot, setAutoSnapshot] = useState(false);
+  const [obstPoints, setObstPoints] = useState([]);
+  const [show3DView, setShow3DView] = useState(false);
+  const [pointCloudSource, setPointCloudSource] = useState("obstmap"); // or "pointcloud"
+
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
   const [viewMode, setViewMode] = useState("stream");
   const [feedback, setFeedback] = useState({
@@ -195,6 +234,28 @@ function Ros2Agents() {
     const interval = setInterval(fetchGpsData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+  if (!show3DView) return;
+
+  const fetchPointCloud = async () => {
+    try {
+      const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`);
+      const data = await res.json();
+      if (data.points) {
+        setObstPoints(data.points);
+      }
+    } catch (err) {
+      console.error("Failed to fetch point cloud:", err);
+    }
+  };
+
+  fetchPointCloud();
+  const interval = setInterval(fetchPointCloud, 3000);
+  return () => clearInterval(interval);
+}, [show3DView, pointCloudSource]);
+
+
 
   const sendCommand = async (agent, topic, params = {}) => {
     try {
@@ -341,7 +402,18 @@ function Ros2Agents() {
               })
             }
           />
-        </Box>
+          </Box>
+                {show3DView && (
+          <Box mt={4}>
+            <Typography variant="h6">
+              {pointCloudSource === "obstmap"
+                ? "3D Obstacle Map View"
+                : "3D Raw Point Cloud View"}
+            </Typography>
+            <PointCloudViewer points={obstPoints} />
+          </Box>
+        )}
+
       </Box>  
       <Grid container spacing={4}>
         <Grid item xs={12}>
@@ -362,6 +434,29 @@ function Ros2Agents() {
                   sx={{ mb: 2, width: "200px" }}
                   inputProps={{ min: 1, max: 10 }}
                 />
+              
+                <Box mt={4} mb={2}>
+                <Typography variant="h6">3D Point Cloud Visualization</Typography>
+                <Button
+                  variant={show3DView ? "contained" : "outlined"}
+                  onClick={() => setShow3DView((prev) => !prev)}
+                  sx={{ mr: 2 }}
+                >
+                  {show3DView ? "Disable 3D View" : "Enable 3D View"}
+                </Button>
+
+                {show3DView && (
+                  <Select
+                    value={pointCloudSource}
+                    onChange={(e) => setPointCloudSource(e.target.value)}
+                  >
+                    <MenuItem value="obstmap">Obstacle Map (/obstmap)</MenuItem>
+                    <MenuItem value="pointcloud">Raw Point Cloud (/pointcloud)</MenuItem>
+                  </Select>
+                )}
+              </Box>
+
+
 
                 {Object.keys(agents[selectedAgent].commands).map((cmd) => (
                   <Button
@@ -376,6 +471,8 @@ function Ros2Agents() {
                           action: ["Sit", "Stand", "Walk"].includes(cmd)
                             ? cmd.toLowerCase()
                             : undefined,
+                          gait: cmd === "Set Gait (walk)" ? "walk" : undefined,
+
                           duration:
                             ["Move Forward", "Move Backward", "Move Left", "Move Right", "Turn Left", "Turn Right"].includes(
                               cmd

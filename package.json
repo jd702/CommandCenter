@@ -11,6 +11,8 @@
     "@mui/material": "^6.4.3",
     "@mui/styled-engine-sc": "^6.4.3",
     "@mui/x-data-grid": "^7.25.0",
+    "@react-three/drei": "^10.2.0",
+    "@react-three/fiber": "^9.1.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.1",
@@ -35,6 +37,7 @@
     "roslib": "^1.4.1",
     "socket.io-client": "^4.8.1",
     "styled-components": "^6.1.15",
+    "three": "^0.177.0",
     "uuid": "^11.0.5",
     "web-vitals": "^4.2.4"
   },
