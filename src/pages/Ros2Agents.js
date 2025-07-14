@@ -235,7 +235,7 @@ function Ros2Agents() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
+ useEffect(() => {
   if (!show3DView) return;
 
   const fetchPointCloud = async () => {
@@ -252,11 +252,14 @@ function Ros2Agents() {
 
   fetchPointCloud();
   const interval = setInterval(fetchPointCloud, 3000);
-  return () => clearInterval(interval);
+  return () => {
+    clearInterval(interval);
+    setObstPoints([]); // Clear points when 3D view is disabled
+  };
 }, [show3DView, pointCloudSource]);
 
 
-
+// Function to send commands to the Flask API
   const sendCommand = async (agent, topic, params = {}) => {
     try {
       const response = await fetch(`${FLASK_API_BASE_URL}/command`, {
@@ -301,23 +304,51 @@ function Ros2Agents() {
       });
     }
   };
+const handleCommandSubmit = (e) => {
+  e.preventDefault();
+  if (commandInput.trim() !== "") {
+    try {
+      const parsedCommand = JSON.parse(commandInput);
 
-  const handleCommandSubmit = (e) => {
-    e.preventDefault();
-    if (commandInput.trim() !== "") {
-      try {
-        const parsedCommand = JSON.parse(commandInput);
+      // Special case for GPS goal command
+      if (parsedCommand.topic === "/command/send_goal") {
+        fetch(`${FLASK_API_BASE_URL}/command/send_goal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsedCommand.command),
+        })
+          .then((res) => res.json())
+          .then((result) =>
+            setFeedback({
+              open: true,
+              message: result.message || "Goal sent!",
+              severity: "success",
+            })
+          )
+          .catch(() =>
+            setFeedback({
+              open: true,
+              message: "Failed to send GPS goal.",
+              severity: "error",
+            })
+          );
+      } else {
+        // Default command route
         sendCommand(selectedAgent, parsedCommand.topic, parsedCommand.command);
-        setCommandInput("");
-      } catch (error) {
-        setFeedback({
-          open: true,
-          message: "Invalid JSON format.",
-          severity: "error",
-        });
       }
+
+      setCommandInput("");
+    } catch (error) {
+      setFeedback({
+        open: true,
+        message: "Invalid JSON format.",
+        severity: "error",
+      });
     }
-  };
+  }
+};
+
+  
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4">ROS 2 Agent Control Center</Typography>
@@ -410,9 +441,13 @@ function Ros2Agents() {
                 ? "3D Obstacle Map View"
                 : "3D Raw Point Cloud View"}
             </Typography>
-            <PointCloudViewer points={obstPoints} />
-          </Box>
+        {obstPoints.length === 0 ? (
+          <Typography variant="body2">Loading 3D data...</Typography>
+        ) : (
+          <PointCloudViewer points={obstPoints} />
         )}
+      </Box>
+    )}
 
       </Box>  
       <Grid container spacing={4}>
@@ -533,6 +568,65 @@ function Ros2Agents() {
           </Button>
         </form>
       </Box>
+      <Box mt={4}>
+  <Typography variant="h6">Send Autonomous Goal</Typography>
+  <Grid container spacing={2}>
+    <Grid item xs={6}>
+      <TextField
+        label="Latitude"
+        type="number"
+        fullWidth
+        value={gpsData.lat}
+        onChange={(e) => setGpsData({ ...gpsData, lat: parseFloat(e.target.value) })}
+      />
+    </Grid>
+    <Grid item xs={6}>
+      <TextField
+        label="Longitude"
+        type="number"
+        fullWidth
+        value={gpsData.lng}
+        onChange={(e) => setGpsData({ ...gpsData, lng: parseFloat(e.target.value) })}
+      />
+    </Grid>
+  </Grid>
+  <Button
+    variant="contained"
+    sx={{ mt: 2 }}
+    onClick={async () => {
+      try {
+        const response = await fetch(`${FLASK_API_BASE_URL}/command/send_goal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+          topic: "/command/send_goal",
+          command: {
+          latitude: gpsData.lat,
+          longitude: gpsData.lng,
+          z: 0.0  
+  }
+}),
+
+        });
+        const result = await response.json();
+        setFeedback({
+          open: true,
+          message: result.message || "Goal sent!",
+          severity: response.ok ? "success" : "error",
+        });
+      } catch (err) {
+        setFeedback({
+          open: true,
+          message: "Failed to send GPS goal.",
+          severity: "error",
+        });
+      }
+    }}
+  >
+    Send GPS Goal to Robot
+  </Button>
+</Box>
+
 
       <Snackbar
         open={feedback.open}

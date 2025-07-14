@@ -39,7 +39,7 @@ import HelpIcon from '@mui/icons-material/Help';
 import History from './History'; // Import the History component
 import Tasking from './Tasking'; // Import other components as needed
 import SettingsPage from './SettingsPage'; // Import other components as needed
-
+import SimDashboard from './SimDashboard'; // Import the SimDashboard component
 import RobotIcon from '@mui/icons-material/SmartToy'; // Import the robot icon
 import AugmentorUploader from "./DataTransformation";
 import { CameraAltRounded, RadioButtonChecked } from "@mui/icons-material";
@@ -101,6 +101,13 @@ const sideBar = [
     path: "/agent-tracker",
     icon: <RadioButtonChecked />,
   },  
+
+  {
+    index: 9,
+    name: "Sim Dashboard",
+    path: "/sim-dashboard",
+    icon: <DashboardIcon />,
+  }
 ];
 
 const openedMixin = (theme) => ({
@@ -316,6 +323,14 @@ const MainHub = () => {
             <Typography variant="h4" gutterBottom className="welcome-message">
               Welcome to the Mission Control Center
             </Typography>
+           
+          <Typography varirant= "h6"> Mission Control </Typography>
+          <iframe
+            title= "Mission Control Center"
+            style={{ width: '100%', height: '600px', border: "1px solid gray"}}
+            src= "http://192.168.168.105:5000/"
+          ></iframe>
+
             <Typography variant="body1" gutterBottom className="welcome-message">
               This is the central hub for managing and monitoring the autonomous systems associated with Bowie State University. Use the navigation menu to access different sections.
             </Typography>
