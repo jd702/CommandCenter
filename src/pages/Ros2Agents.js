@@ -154,6 +154,7 @@ function Ros2Agents() {
   const [selectedCamera, setSelectedCamera] = useState("Front Left");
   const [batteryStatus, setBatteryStatus] = useState("Unknown");
   const [gpsData, setGpsData] = useState({ lat: 0, lng: 0 });
+  const [gpsGoal, setGpsGoal] = useState({ lat: 0, lng: 0});
   const [commandInput, setCommandInput] = useState("");
   const [movementDuration, setMovementDuration] = useState(1);
   const [selectedPredefinedCommand, setSelectedPredefinedCommand] =
@@ -163,6 +164,7 @@ function Ros2Agents() {
   const [obstPoints, setObstPoints] = useState([]);
   const [show3DView, setShow3DView] = useState(false);
   const [pointCloudSource, setPointCloudSource] = useState("obstmap"); // or "pointcloud"
+
 
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
   const [viewMode, setViewMode] = useState("stream");
@@ -574,19 +576,23 @@ const handleCommandSubmit = (e) => {
     <Grid item xs={6}>
       <TextField
         label="Latitude"
-        type="number"
+        type="text"
+        inputMode="decimal"
+        pattern="^-?\d*(\.\d+)?$"
         fullWidth
-        value={gpsData.lat}
-        onChange={(e) => setGpsData({ ...gpsData, lat: parseFloat(e.target.value) })}
+        value={gpsGoal.lat}
+        onChange={(e) => setGpsGoal({ ...gpsGoal, lat: parseFloat(e.target.value) || 0 })}
       />
     </Grid>
     <Grid item xs={6}>
       <TextField
         label="Longitude"
-        type="number"
+        type="text"
+        inputMode="decimal"
+        pattern="^-?\d*(\.\d+)?$"
         fullWidth
-        value={gpsData.lng}
-        onChange={(e) => setGpsData({ ...gpsData, lng: parseFloat(e.target.value) })}
+        value={gpsGoal.lng}
+        onChange={(e) => setGpsGoal({ ...gpsGoal, lng: parseFloat(e.target.value) || 0 })}
       />
     </Grid>
   </Grid>
@@ -601,8 +607,8 @@ const handleCommandSubmit = (e) => {
           body: JSON.stringify({
           topic: "/command/send_goal",
           command: {
-          latitude: gpsData.lat,
-          longitude: gpsData.lng,
+          latitude: gpsGoal.lat,
+          longitude: gpsGoal.lng,
           z: 0.0  
   }
 }),

@@ -1,43 +1,69 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 import { Box, Typography, Paper, Button } from '@mui/material';
-import { parseStringPromise } from 'xml2js';
-import MapView from '../pages/MapView'; // This should be your Leaflet map
-
-const socket = io('http://localhost:5001'); // TCP bridge server
+import MapView from '../pages/MapView';
 
 function SimDashboard() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(null);         // AirVehicleState for the map
+  const [lastMsg, setLastMsg] = useState(null);   // any last message for debug
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    socket.on('simUpdate', async (msg) => {
-      try {
-        const parsed = await parseStringPromise(msg);
-        const avState = parsed?.AirVehicleState;
+    // Create socket once, on mount
+    const socket = io('http://localhost:5001', {
+      transports: ['websocket', 'polling'],   // be explicit
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+    });
+    socketRef.current = socket;
 
-        if (avState) {
-          const id = avState.ID?.[0];
-          const lat = parseFloat(avState.Location?.[0]?.Latitude?.[0]);
-          const lon = parseFloat(avState.Location?.[0]?.Longitude?.[0]);
-          const heading = parseFloat(avState.Heading?.[0]);
+    socket.on('connect', () => {
+      console.log(' socket.io connected, id:', socket.id);
+    });
 
-          setData({ id, lat, lon, heading });
-        }
-      } catch (err) {
-        console.error('Parsing failed:', err);
+    socket.on('connect_error', (err) => {
+      console.error(' socket connect_error:', err.message);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.warn(' socket disconnected:', reason);
+    });
+
+    socket.on('simUpdate', (msg) => {
+      // Log everything so we can see what’s coming from the bridge
+      console.log('a simUpdate:', msg);
+      setLastMsg(msg);
+
+      // Only set map state on AirVehicleState
+      if (
+        msg?.type === 'AirVehicleState' &&
+        typeof msg.lat === 'number' &&
+        typeof msg.lon === 'number'
+      ) {
+        setData({
+          id: msg.vehicle_id,
+          lat: msg.lat,
+          lon: msg.lon,
+          heading: msg.heading,
+        });
       }
     });
 
-    return () => socket.off('simUpdate');
+    // Cleanup on unmount / hot-reload
+    return () => {
+      socket.off('simUpdate');
+      socket.disconnect();
+    };
   }, []);
 
   const sendCommand = () => {
-    // Example: You could emit a custom command to the bridge here
-    socket.emit('sendCommand', {
+    if (!data?.id || !socketRef.current) return;
+    socketRef.current.emit('sendCommand', {
       type: 'AutomationRequest',
-      entityID: data?.id,
+      entityID: data.id,
     });
-    console.log('Sent AutomationRequest for entity', data?.id);
+    console.log('➡️ Sent AutomationRequest for entity', data.id);
   };
 
   return (
@@ -67,11 +93,19 @@ function SimDashboard() {
         </>
       ) : (
         <Paper elevation={2} style={{ padding: '1rem', marginTop: '1rem' }}>
-          <Typography variant="body2" component="pre">
+          <Typography variant="body2">
             Waiting for simulation data...
           </Typography>
         </Paper>
       )}
+
+      {/* Debug panel to see what the backend is actually sending */}
+      <Paper elevation={1} style={{ padding: '0.75rem', marginTop: '1rem' }}>
+        <Typography variant="subtitle2" gutterBottom>Last message (debug):</Typography>
+        <pre style={{ margin: 0, maxHeight: 160, overflow: 'auto' }}>
+          {lastMsg ? JSON.stringify(lastMsg, null, 2) : '—'}
+        </pre>
+      </Paper>
     </Box>
   );
 }
