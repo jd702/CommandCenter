@@ -11,6 +11,7 @@ import {
   MenuItem,
   Snackbar,
   Alert,
+  Slider,
 } from "@mui/material";
 import PointCloudViewer from "./PointCloudViewer";
 
@@ -146,6 +147,34 @@ const predefinedCommands = {
     null,
     2
   ),
+  "Autonomous Planner Move (Default Speed)": JSON.stringify(
+  {
+    topic: "/command/autonomous_move",
+    method: "POST",
+    linear_x: 0.6
+  },
+  null,
+  2
+),
+"Autonomous Planner Move (Slow)": JSON.stringify(
+  {
+    topic: "/command/autonomous_move",
+    method: "POST",
+    linear_x: 0.2
+  },
+  null,
+  2
+),
+"Autonomous Planner Move (Fast)": JSON.stringify(
+  {
+    topic: "/command/autonomous_move",
+    method: "POST",
+    linear_x: 1.2
+  },
+  null,
+  2
+),
+
 };
 
 
@@ -159,7 +188,8 @@ function Ros2Agents() {
   const [movementDuration, setMovementDuration] = useState(1);
   const [selectedPredefinedCommand, setSelectedPredefinedCommand] =
     useState("");
-  
+  const [plannerSpeed, setPlannerSpeed] = useState(0.6);
+
   const [autoSnapshot, setAutoSnapshot] = useState(false);
   const [obstPoints, setObstPoints] = useState([]);
   const [show3DView, setShow3DView] = useState(false);
@@ -420,36 +450,55 @@ const handleCommandSubmit = (e) => {
           </>
         )}
   
-        <Box mt={2}>
-          <img
-            src={videoStreamUrl}
-            alt="Camera Feed"
-            width="1920"
-            height="1080"
-            style={{ border: "1px solid black" }}
-            onError={() =>
-              setFeedback({
-                open: true,
-                message: "Failed to load camera feed.",
-                severity: "error",
-              })
-            }
-          />
-          </Box>
-                {show3DView && (
-          <Box mt={4}>
-            <Typography variant="h6">
-              {pointCloudSource === "obstmap"
-                ? "3D Obstacle Map View"
-                : "3D Raw Point Cloud View"}
-            </Typography>
-        {obstPoints.length === 0 ? (
-          <Typography variant="body2">Loading 3D data...</Typography>
-        ) : (
-          <PointCloudViewer points={obstPoints} />
-        )}
-      </Box>
-    )}
+        {show3DView ? (
+  <Box mt={2} display="flex" justifyContent="space-between" gap={4}>
+    <Box flex={1}>
+      <Typography variant="h6">Live Camera View</Typography>
+      <img
+        src={videoStreamUrl}
+        alt="Camera Feed"
+        width="100%"
+        style={{ border: "1px solid black", maxHeight: "480px", objectFit: "cover" }}
+        onError={() =>
+          setFeedback({
+            open: true,
+            message: "Failed to load camera feed.",
+            severity: "error",
+          })
+        }
+      />
+    </Box>
+
+    <Box flex={1}>
+      <Typography variant="h6">
+        {pointCloudSource === "obstmap"
+          ? "3D Obstacle Map View"
+          : "3D Raw Point Cloud View"}
+      </Typography>
+      {obstPoints.length === 0 ? (
+        <Typography variant="body2">Loading 3D data...</Typography>
+      ) : (
+        <PointCloudViewer points={obstPoints} />
+      )}
+    </Box>
+  </Box>
+) : (
+  <Box mt={2}>
+    <img
+      src={videoStreamUrl}
+      alt="Camera Feed"
+      width="100%"
+      style={{ border: "1px solid black", maxHeight: "480px", objectFit: "cover" }}
+      onError={() =>
+        setFeedback({
+          open: true,
+          message: "Failed to load camera feed.",
+          severity: "error",
+        })
+      }
+    />
+  </Box>
+)}
 
       </Box>  
       <Grid container spacing={4}>
@@ -631,6 +680,53 @@ const handleCommandSubmit = (e) => {
   >
     Send GPS Goal to Robot
   </Button>
+  <Box mt={4}>
+  <Typography variant="h6">Autonomous Planner Control</Typography>
+
+  <Box mt={2}>
+    <Typography gutterBottom>Speed (m/s): {plannerSpeed.toFixed(2)}</Typography>
+    <Slider
+      value={plannerSpeed}
+      onChange={(e, newValue) => setPlannerSpeed(newValue)}
+      min={0.1}
+      max={1.5}
+      step={0.1}
+      valueLabelDisplay="auto"
+      aria-labelledby="planner-speed-slider"
+    />
+  </Box>
+
+  <Button
+    variant="contained"
+    color="primary"
+    sx={{ mt: 2 }}
+    onClick={async () => {
+      try {
+        const response = await fetch(`${FLASK_API_BASE_URL}/command/autonomous_move`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ linear_x: plannerSpeed }),
+        });
+        const result = await response.json();
+        setFeedback({
+          open: true,
+          message: result.message || "Planner goal sent!",
+          severity: response.ok ? "success" : "error",
+        });
+      } catch (err) {
+        setFeedback({
+          open: true,
+          message: "Failed to send planner goal.",
+          severity: "error",
+        });
+      }
+    }}
+  >
+    Send Planner Goal
+  </Button>
+</Box>
+
+
 </Box>
 
 

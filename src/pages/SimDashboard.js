@@ -8,54 +8,57 @@ function SimDashboard() {
   const [lastMsg, setLastMsg] = useState(null);   // any last message for debug
   const socketRef = useRef(null);
 
-  useEffect(() => {
-    // Create socket once, on mount
-    const socket = io('http://localhost:5001', {
-      transports: ['websocket', 'polling'],   // be explicit
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
-    });
-    socketRef.current = socket;
+useEffect(() => {
+  const socket = io('http://localhost:5001', {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  });
+  socketRef.current = socket;
 
-    socket.on('connect', () => {
-      console.log(' socket.io connected, id:', socket.id);
-    });
+  socket.on('connect', () => {
+    console.log('socket.io connected, id:', socket.id);
+  });
+  socket.on('connect_error', (err) => {
+    console.error('socket connect_error:', err.message);
+  });
+  socket.on('disconnect', (reason) => {
+    console.warn('socket disconnected:', reason);
+  });
 
-    socket.on('connect_error', (err) => {
-      console.error(' socket connect_error:', err.message);
-    });
+  // NEW: general stream (everything)
+  socket.on('lmcp', (msg) => {
+    console.log('lmcp:', msg);
+    setLastMsg(msg);
+  });
 
-    socket.on('disconnect', (reason) => {
-      console.warn(' socket disconnected:', reason);
-    });
+  // Keep your existing simUpdate (bridge emits this for AirVehicleState)
+  socket.on('simUpdate', (msg) => {
+    console.log('simUpdate:', msg);
+    setLastMsg(msg);
 
-    socket.on('simUpdate', (msg) => {
-      // Log everything so we can see what’s coming from the bridge
-      console.log('a simUpdate:', msg);
-      setLastMsg(msg);
+    if (
+      msg?.type === 'AirVehicleState' &&
+      typeof msg.lat === 'number' &&
+      typeof msg.lon === 'number'
+    ) {
+      setData({
+        id: msg.vehicle_id,
+        lat: msg.lat,
+        lon: msg.lon,
+        heading: msg.heading,
+      });
+    }
+  });
 
-      // Only set map state on AirVehicleState
-      if (
-        msg?.type === 'AirVehicleState' &&
-        typeof msg.lat === 'number' &&
-        typeof msg.lon === 'number'
-      ) {
-        setData({
-          id: msg.vehicle_id,
-          lat: msg.lat,
-          lon: msg.lon,
-          heading: msg.heading,
-        });
-      }
-    });
+  return () => {
+    socket.off('lmcp');
+    socket.off('simUpdate');
+    socket.disconnect();
+  };
+}, []);
 
-    // Cleanup on unmount / hot-reload
-    return () => {
-      socket.off('simUpdate');
-      socket.disconnect();
-    };
-  }, []);
 
   const sendCommand = () => {
     if (!data?.id || !socketRef.current) return;
