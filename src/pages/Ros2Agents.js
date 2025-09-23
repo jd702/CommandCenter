@@ -14,8 +14,8 @@ import {
   Slider,
 } from "@mui/material";
 import PointCloudViewer from "./PointCloudViewer";
-
-const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
+import {PointCloudDecompressor} from './Ros2Agents_with_HSFC'
+const FLASK_API_BASE_URL = "http://localhost:9000";
 
 const agents = {
   ghost: {
@@ -193,7 +193,7 @@ function Ros2Agents() {
   const [autoSnapshot, setAutoSnapshot] = useState(false);
   const [obstPoints, setObstPoints] = useState([]);
   const [show3DView, setShow3DView] = useState(false);
-  const [pointCloudSource, setPointCloudSource] = useState("obstmap"); // or "pointcloud"
+  const [pointCloudSource, setPointCloudSource] = useState("generate"); // or "pointcloud"
 
 
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
@@ -203,79 +203,85 @@ function Ros2Agents() {
     message: "",
     severity: "info",
   });
+  const decompressor = new PointCloudDecompressor(10);
+  // useEffect(() => {
+  //   let interval; // To store interval reference for cleanup
+  
+  //   // Helper function: fetches snapshot image and forces URL update to prevent browser caching
+  //   const fetchSnapshot = () => {
+  //     const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+  //     setVideoStreamUrl(url); // Update React state to re-render image
+  //   };
+  
+  //   if (viewMode === "stream") {
+  //     // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
+  //     // Creates a realistic, smooth video-like effect (4 fps)
+  //     fetchSnapshot(); // Initial immediate fetch
+  //     interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
+  //   } else if (viewMode === "snapshot") {
+  //     // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
+  //     fetchSnapshot();
+  
+  //     if (autoSnapshot) {
+  //       // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
+  //       interval = setInterval(fetchSnapshot, 2000);
+  //     }
+  //     // Else: no interval set, snapshot stays static unless manually refreshed by the user
+  //   }
+  
+  //   // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
+  //   return () => clearInterval(interval);
+  // }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
+  
+  
+  
+  // useEffect(() => {
+  //   const fetchBatteryStatus = async () => {
+  //     try {
+  //       const response = await fetch(`${FLASK_API_BASE_URL}/status`);
+  //       const data = await response.json();
+  //       setBatteryStatus(data.battery?.ghost || "Unknown");
+  //     } catch (error) {
+  //       console.error("Error fetching battery status:", error);
+  //     }
+  //   };
+  //   fetchBatteryStatus();
+  //   const interval = setInterval(fetchBatteryStatus, 5000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
-  useEffect(() => {
-    let interval; // To store interval reference for cleanup
-  
-    // Helper function: fetches snapshot image and forces URL update to prevent browser caching
-    const fetchSnapshot = () => {
-      const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
-      setVideoStreamUrl(url); // Update React state to re-render image
-    };
-  
-    if (viewMode === "stream") {
-      // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
-      // Creates a realistic, smooth video-like effect (4 fps)
-      fetchSnapshot(); // Initial immediate fetch
-      interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
-    } else if (viewMode === "snapshot") {
-      // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
-      fetchSnapshot();
-  
-      if (autoSnapshot) {
-        // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
-        interval = setInterval(fetchSnapshot, 2000);
-      }
-      // Else: no interval set, snapshot stays static unless manually refreshed by the user
-    }
-  
-    // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
-    return () => clearInterval(interval);
-  }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
-  
-  
-  
-  useEffect(() => {
-    const fetchBatteryStatus = async () => {
-      try {
-        const response = await fetch(`${FLASK_API_BASE_URL}/status`);
-        const data = await response.json();
-        setBatteryStatus(data.battery?.ghost || "Unknown");
-      } catch (error) {
-        console.error("Error fetching battery status:", error);
-      }
-    };
-    fetchBatteryStatus();
-    const interval = setInterval(fetchBatteryStatus, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const fetchGpsData = async () => {
-      try {
-        const response = await fetch(`${FLASK_API_BASE_URL}/gps`);
-        const data = await response.json();
-        if (data.ghost) {
-          setGpsData({ lat: data.ghost.latitude, lng: data.ghost.longitude });
-        }
-      } catch (error) {
-        console.error("Error fetching GPS data:", error);
-      }
-    };
-    fetchGpsData();
-    const interval = setInterval(fetchGpsData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  // useEffect(() => {
+  //   const fetchGpsData = async () => {
+  //     try {
+  //       const response = await fetch(`${FLASK_API_BASE_URL}/gps`);
+  //       const data = await response.json();
+  //       if (data.ghost) {
+  //         setGpsData({ lat: data.ghost.latitude, lng: data.ghost.longitude });
+  //       }
+  //     } catch (error) {
+  //       console.error("Error fetching GPS data:", error);
+  //     }
+  //   };
+  //   fetchGpsData();
+  //   const interval = setInterval(fetchGpsData, 5000);
+  //   return () => clearInterval(interval);
+  // }, []);
 
  useEffect(() => {
   if (!show3DView) return;
 
   const fetchPointCloud = async () => {
     try {
-      const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`);
+      const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`,{
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+      });
       const data = await res.json();
-      if (data.points) {
-        setObstPoints(data.points);
+      console.log("Here", data)
+      if (data.compressed_data) {
+        console.log("Here")
+        const points = decompressor.decompressPointCloud(data.compressed_data)
+        setObstPoints(points);
       }
     } catch (err) {
       console.error("Failed to fetch point cloud:", err);

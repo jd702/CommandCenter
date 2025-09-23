@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
+import {usePointCloudDecompressor} from './Ros2Agents_with_HSFC'
 
 const PointCloudViewer = ({ points = [] }) => {
   const mountRef = useRef(null);
