@@ -76,23 +76,35 @@ class PointCloudCompressor:
         self.hilbert = Hilbert3D(hilbert_order)
         self.max_coord = self.hilbert.size - 1
     
-    def normalize_points(self, points: np.ndarray) -> np.ndarray:
-        """Normalize points to fit in Hilbert cube [0, max_coord]"""
-        # Normalize to [0, 1]
+    def normalize_points(self, points: np.ndarray) -> Tuple[np.ndarray, Dict]:
+        """Normalize points to fit in Hilbert cube [0, max_coord] and return normalization params"""
+        # Calculate normalization parameters
         min_vals = points.min(axis=0)
         max_vals = points.max(axis=0)
+        
+        # Normalize to [0, 1]
         normalized = (points - min_vals) / (max_vals - min_vals)
         
         # Scale to Hilbert space
         scaled = normalized * self.max_coord
-        return scaled.astype(int)
-    
+        
+        # Store normalization parameters for later denormalization
+        norm_params = {
+            'min_vals': min_vals.tolist(),
+            'max_vals': max_vals.tolist(),
+            'max_coord': self.max_coord
+        }
+        
+        return scaled.astype(int), norm_params
+
     def compress_point_cloud(self, points: np.ndarray, colors: np.ndarray) -> Dict:
         """Compress point cloud using Hilbert space-filling curve"""
         start_time = time.time()
+        print(f"Compressing {len(points)} points with colors")
         
         # Normalize points to fit in Hilbert space
-        normalized_points = self.normalize_points(points)
+        normalized_points, norm_params = self.normalize_points(points)
+        print(f"Normalized points range: {norm_params.get('min')} to {norm_params.get('max')}")
         
         # Calculate Hilbert distances
         hilbert_distances = []
@@ -101,12 +113,17 @@ class PointCloudCompressor:
             distance = self.hilbert.hilbert_distance(x, y, z)
             hilbert_distances.append(distance)
         
+        print(f"Calculated {len(hilbert_distances)} Hilbert distances")
+        
         # Sort by Hilbert distance for better compression
         sorted_indices = np.argsort(hilbert_distances)
         sorted_distances = np.array(hilbert_distances)[sorted_indices]
         
+        # Sort colors according to the same indices
         sorted_colors = colors[sorted_indices]
-
+        
+        print(f"Sorted by Hilbert distance, range: {sorted_distances.min()} to {sorted_distances.max()}")
+        
         # Calculate compression metrics
         original_points_size = points.nbytes
         original_colors_size = colors.nbytes
@@ -114,23 +131,26 @@ class PointCloudCompressor:
         
         # Compress by storing differences between consecutive Hilbert distances
         compressed_distances = np.diff(np.concatenate([[0], sorted_distances]))
+        
+        # Compress colors - store color differences
         compressed_colors = np.diff(sorted_colors, axis=0, prepend=sorted_colors[0:1])
         
-        compressed_size = compressed_distances.nbytes + sorted_indices.nbytes
+        compressed_size = (compressed_distances.nbytes + compressed_colors.nbytes + 
+                          sorted_indices.nbytes + sorted_colors[0].nbytes)
         
         compression_ratio = original_size / compressed_size
         processing_time = time.time() - start_time
         
+        print(f"Compression complete: {compression_ratio:.2f}x ratio in {processing_time*1000:.1f}ms")
+        print(f"Original size: {original_size} bytes, Compressed size: {compressed_size} bytes")
+        
         return {
-            # 'original_points': points.tolist(),
-            # 'normalized_points': normalized_points.tolist(),
-            # 'hilbert_distances': sorted_distances.tolist(),
             'compressed_distances': compressed_distances.tolist(),
             'compressed_colors': compressed_colors.tolist(),
             'first_color': sorted_colors[0].tolist(),
             'sorted_indices': sorted_indices.tolist(),
+            'norm_params': norm_params,
         }
-    
     def decompress_point_cloud(self, compressed_data: Dict) -> Tuple[np.ndarray, np.ndarray]:
         """Decompress point cloud from Hilbert representation"""
         compressed_distances = np.array(compressed_data['compressed_distances'])

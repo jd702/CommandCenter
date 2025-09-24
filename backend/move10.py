@@ -62,6 +62,7 @@ latest_obstmap = []
 class ObstacleMapListener(Node):
     def __init__(self):
         super().__init__('obstacle_map_listener')
+        self.points_compressor = PointCloudCompressor(hilbert_order=3)
         self.subscription = self.create_subscription(
             PointCloud2,
             '/mcu/state/obstmap',
@@ -90,12 +91,14 @@ class PointCloudListener(Node):
         global latest_pointcloud
         points = []
         for point in pc2.read_points(msg, skip_nans=True, field_names=("x", "y", "z")):
-            hilbert_result = self.points_compressor.compress_point_cloud(np.column_stack([point[0],point[1],point[2]]))
-            # points.append({
-            #     "x": point[0], "y": point[1], "z": point[2],
-            #     "r": 100, "g": 255, "b": 100
-            # })
-            points.append(hilbert_result)
+            hilbert_result = self.points_compressor.compress_point_cloud(
+                np.column_stack([point[0],point[1],point[2]]),
+                np.column_stack([100,255,100]) )
+            points.append({
+                "x": point[0], "y": point[1], "z": point[2],
+                "r": 100, "g": 255, "b": 100
+            })
+            print(f"Hilbert curve points: {hilbert_result}")
         latest_pointcloud = points
 
 class RobotCommandPublisher(Node):
