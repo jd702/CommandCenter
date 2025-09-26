@@ -12,10 +12,15 @@ import {
   Snackbar,
   Alert,
   Slider,
+  FormControl,
+  InputLabel,
+  Switch,
+
 } from "@mui/material";
 import PointCloudViewer from "./PointCloudViewer";
 import {PointCloudDecompressor} from './Ros2Agents_with_HSFC'
-const FLASK_API_BASE_URL = "http://localhost:9000";
+
+const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
 
 const agents = {
   ghost: {
@@ -193,9 +198,13 @@ function Ros2Agents() {
   const [autoSnapshot, setAutoSnapshot] = useState(false);
   const [obstPoints, setObstPoints] = useState([]);
   const [show3DView, setShow3DView] = useState(false);
-  const [pointCloudSource, setPointCloudSource] = useState("generate"); // or "pointcloud"
+  const [pointCloudSource, setPointCloudSource] = useState("obstmap"); // or "pointcloud"
+  const [pointCloudTransport, setPointCloudTransport] = useState("raw"); // 'raw' | 'compressed' | 'combined'
+  const POINTCLOUD_POLL_MS = 3000; // centralize poll rate
 
 
+  const decompressor = new PointCloudDecompressor(3);
+  const [useCompression, setUseCompression] = useState(false);
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
   const [viewMode, setViewMode] = useState("stream");
   const [feedback, setFeedback] = useState({
@@ -203,80 +212,180 @@ function Ros2Agents() {
     message: "",
     severity: "info",
   });
-  const decompressor = new PointCloudDecompressor(10);
-  // useEffect(() => {
-  //   let interval; // To store interval reference for cleanup
+  useEffect(() => {
+    let interval; // To store interval reference for cleanup
   
-  //   // Helper function: fetches snapshot image and forces URL update to prevent browser caching
-  //   const fetchSnapshot = () => {
-  //     const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
-  //     setVideoStreamUrl(url); // Update React state to re-render image
-  //   };
+    // Helper function: fetches snapshot image and forces URL update to prevent browser caching
+    const fetchSnapshot = () => {
+      const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+      setVideoStreamUrl(url); // Update React state to re-render image
+    };
   
-  //   if (viewMode === "stream") {
-  //     // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
-  //     // Creates a realistic, smooth video-like effect (4 fps)
-  //     fetchSnapshot(); // Initial immediate fetch
-  //     interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
-  //   } else if (viewMode === "snapshot") {
-  //     // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
-  //     fetchSnapshot();
+    if (viewMode === "stream") {
+      // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
+      // Creates a realistic, smooth video-like effect (4 fps)
+      fetchSnapshot(); // Initial immediate fetch
+      interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
+    } else if (viewMode === "snapshot") {
+      // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
+      fetchSnapshot();
   
-  //     if (autoSnapshot) {
-  //       // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
-  //       interval = setInterval(fetchSnapshot, 2000);
-  //     }
-  //     // Else: no interval set, snapshot stays static unless manually refreshed by the user
-  //   }
+      if (autoSnapshot) {
+        // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
+        interval = setInterval(fetchSnapshot, 2000);
+      }
+      // Else: no interval set, snapshot stays static unless manually refreshed by the user
+    }
   
-  //   // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
-  //   return () => clearInterval(interval);
-  // }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
-  
+    // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
+    return () => clearInterval(interval);
+  }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
   
   
-  // useEffect(() => {
-  //   const fetchBatteryStatus = async () => {
-  //     try {
-  //       const response = await fetch(`${FLASK_API_BASE_URL}/status`);
-  //       const data = await response.json();
-  //       setBatteryStatus(data.battery?.ghost || "Unknown");
-  //     } catch (error) {
-  //       console.error("Error fetching battery status:", error);
-  //     }
-  //   };
-  //   fetchBatteryStatus();
-  //   const interval = setInterval(fetchBatteryStatus, 5000);
-  //   return () => clearInterval(interval);
-  // }, []);
+  
+  useEffect(() => {
+    const fetchBatteryStatus = async () => {
+      try {
+        const response = await fetch(`${FLASK_API_BASE_URL}/status`);
+        const data = await response.json();
+        setBatteryStatus(data.battery?.ghost || "Unknown");
+      } catch (error) {
+        console.error("Error fetching battery status:", error);
+      }
+    };
+    fetchBatteryStatus();
+    const interval = setInterval(fetchBatteryStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // useEffect(() => {
-  //   const fetchGpsData = async () => {
-  //     try {
-  //       const response = await fetch(`${FLASK_API_BASE_URL}/gps`);
-  //       const data = await response.json();
-  //       if (data.ghost) {
-  //         setGpsData({ lat: data.ghost.latitude, lng: data.ghost.longitude });
-  //       }
-  //     } catch (error) {
-  //       console.error("Error fetching GPS data:", error);
-  //     }
-  //   };
-  //   fetchGpsData();
-  //   const interval = setInterval(fetchGpsData, 5000);
-  //   return () => clearInterval(interval);
-  // }, []);
+  useEffect(() => {
+    const fetchGpsData = async () => {
+      try {
+        const response = await fetch(`${FLASK_API_BASE_URL}/gps`);
+        const data = await response.json();
+        if (data.ghost) {
+          setGpsData({ lat: data.ghost.latitude, lng: data.ghost.longitude });
+        }
+      } catch (error) {
+        console.error("Error fetching GPS data:", error);
+      }
+    };
+    fetchGpsData();
+    const interval = setInterval(fetchGpsData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
+  useEffect(() => {
+  if (!show3DView) return;
+
+  let abort = false;
+  let interval;
+
+  // decide endpoint based on Transport + Source
+  const endpoint = (() => {
+    if (pointCloudTransport === "compressed") {
+      return pointCloudSource === "obstmap"
+        ? "/obstmap_compressed"
+        : "/pointcloud_compressed";
+    }
+    if (pointCloudTransport === "combined") return "/mapdata";
+    // default raw:
+    return pointCloudSource === "obstmap" ? "/obstmap" : "/pointcloud";
+  })();
+
+  const fetchPointCloud = async () => {
+  try {
+    // choose endpoint based on toggle
+    const endpoint = useCompression
+      ? `${pointCloudSource}_compressed`   // obstmap_compressed | pointcloud_compressed
+      : pointCloudSource;                  // obstmap | pointcloud
+
+    const res = await fetch(`${FLASK_API_BASE_URL}/${endpoint}`);
+    const data = await res.json();
+    // console.log("Fetched point cloud:", data);
+
+    if (useCompression) {
+      // compressed format
+      if (data.status === "ok" && data.compressed_data) {
+        const points = decompressor.decompressPointCloud(data.compressed_data);
+        setObstPoints(points);
+      } else {
+        console.error("Compressed endpoint error:", data.message || data.status);
+        setObstPoints([]);
+      }
+    } else {
+      // raw format (your original behavior)
+      if (Array.isArray(data.points)) {
+        setObstPoints(data.points);
+      } else if (Array.isArray(data.obstmap) || Array.isArray(data.pointcloud)) {
+        const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
+        setObstPoints(arr || []);
+      } else {
+        setObstPoints([]);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch point cloud:", err);
+  }
+};
+
+
+  fetchPointCloud(); // initial
+  interval = setInterval(fetchPointCloud, POINTCLOUD_POLL_MS);
+
+  return () => {
+    abort = true;
+    clearInterval(interval);
+    setObstPoints([]);
+  };
+}, [show3DView, pointCloudSource, pointCloudTransport]);
+
+// useEffect(() => {
+//   if (!show3DView) return;
+
+//   const fetchPointCloud = async () => {
+//     try {
+//       const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`);
+//       const data = await res.json();
+//       console.log("Fetched point cloud data:", data);
+
+//       if (data.compressed_data) {
+//         //  If backend sends compressed blob, decompress it
+//         const points = decompressor.decompressPointCloud(data.compressed_data);
+//         setObstPoints(points);
+//       } else if (Array.isArray(data.points)) {
+//         //  Handle current backend format: plain JSON array
+//         setObstPoints(data.points);
+//       } else if (Array.isArray(data.obstmap) || Array.isArray(data.pointcloud)) {
+//         //  Handle combined map data format
+//         const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
+//         setObstPoints(arr || []);
+//       } else {
+//         console.warn(" No recognizable point data found.");
+//         setObstPoints([]);
+//       }
+//     } catch (err) {
+//       console.error("Failed to fetch point cloud:", err);
+//     }
+//   };
+
+//   fetchPointCloud(); // Fetch immediately
+//   const interval = setInterval(fetchPointCloud, 3000); // Poll every 3s
+//   return () => {
+//     clearInterval(interval);
+//     setObstPoints([]); // Clear points when 3D view is disabled
+//   };
+// }, [show3DView, pointCloudSource]);
+
+/*
  useEffect(() => {
   if (!show3DView) return;
 
   const fetchPointCloud = async () => {
     try {
-      const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`,{
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'}
-      });
+      const res = await fetch(`${FLASK_API_BASE_URL}/${pointCloudSource}`);
       const data = await res.json();
+      console.log("Fetched point cloud data:", data);
       console.log("Here", data)
       if (data.compressed_data) {
         console.log("Here")
@@ -296,7 +405,7 @@ function Ros2Agents() {
   };
 }, [show3DView, pointCloudSource]);
 
-
+*/
 // Function to send commands to the Flask API
   const sendCommand = async (agent, topic, params = {}) => {
     try {
@@ -527,26 +636,58 @@ const handleCommandSubmit = (e) => {
                   inputProps={{ min: 1, max: 10 }}
                 />
               
-                <Box mt={4} mb={2}>
-                <Typography variant="h6">3D Point Cloud Visualization</Typography>
-                <Button
-                  variant={show3DView ? "contained" : "outlined"}
-                  onClick={() => setShow3DView((prev) => !prev)}
-                  sx={{ mr: 2 }}
-                >
-                  {show3DView ? "Disable 3D View" : "Enable 3D View"}
-                </Button>
+               <Box mt={4} mb={2}>
+  <Typography variant="h6">3D Point Cloud Visualization</Typography>
 
-                {show3DView && (
-                  <Select
-                    value={pointCloudSource}
-                    onChange={(e) => setPointCloudSource(e.target.value)}
-                  >
-                    <MenuItem value="obstmap">Obstacle Map (/obstmap)</MenuItem>
-                    <MenuItem value="pointcloud">Raw Point Cloud (/pointcloud)</MenuItem>
-                  </Select>
-                )}
-              </Box>
+  <Button
+    variant={show3DView ? "contained" : "outlined"}
+    onClick={() => setShow3DView((prev) => !prev)}
+    sx={{ mr: 2 }}
+  >
+    {show3DView ? "Disable 3D View" : "Enable 3D View"}
+  </Button>
+
+  {show3DView && (
+    <>
+      {/* Existing source selector */}
+      <FormControl size="small" sx={{ minWidth: 220, mr: 2 }}>
+      <InputLabel id="pc-source-label">Source</InputLabel>
+      <Select
+        labelId="pc-source-label"
+        label="Source"
+        value={pointCloudSource}
+        onChange={(e) => setPointCloudSource(e.target.value)}
+      >
+       <MenuItem value="obstmap">Obstacle Map (/obstmap)</MenuItem>
+       <MenuItem value="pointcloud">Raw Point Cloud (/pointcloud)</MenuItem>
+     </Select>
+   </FormControl>
+
+      <Button
+        variant={useCompression ? "contained" : "outlined"}
+        sx={{ ml: 2 }}
+        onClick={() => setUseCompression(v => !v)}
+      >
+        {useCompression ? "Compression: ON" : "Compression: OFF"}
+      </Button>
+
+      {/* Add this new Transport selector right here */}
+      <FormControl size="small" sx={{ minWidth: 200 }}>
+        <InputLabel>Transport</InputLabel>
+        <Select
+          label="Transport"
+          value={pointCloudTransport}
+          onChange={(e) => setPointCloudTransport(e.target.value)}
+        >
+          <MenuItem value="raw">Raw (JSON)</MenuItem>
+          <MenuItem value="compressed">Compressed (Hilbert)</MenuItem>
+          <MenuItem value="combined">Combined (/mapdata)</MenuItem>
+        </Select>
+      </FormControl>
+    </>
+  )}
+</Box>
+
 
 
 
