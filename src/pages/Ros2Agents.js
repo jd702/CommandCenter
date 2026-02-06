@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Button,
   Typography,
@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import PointCloudViewer from "./PointCloudViewer";
 import {PointCloudDecompressor} from './Ros2Agents_with_HSFC'
+import { data } from "react-router-dom";
 
 const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
 
@@ -75,6 +76,17 @@ const agents = {
       "Side Right Scaled": "side_right_scaled",
       "Side Right Zoom x2": "side_right_zoomx2",
       "Side Right Zoom x4": "side_right_zoomx4",
+
+      // --- optional MCU (snapshots only) ---
+      "MCU Image Left":  "mcu_image_left",
+      "MCU Image Right": "mcu_image_right",
+      "MCU Image Track": "mcu_image_track",
+      "MCU RS2 Depth":   "mcu_rs2_depth",
+      "MCU RS2 IR Left": "mcu_rs2_ir_left",
+      "MCU RS2 IR Right":"mcu_rs2_ir_right",
+      "MCU RS3 Depth":   "mcu_rs3_depth",
+      "MCU RS4 Depth":   "mcu_rs4_depth",
+      "MCU RS4 RGB":     "mcu_rs4_rgb",
     },
   },
 };
@@ -201,10 +213,12 @@ function Ros2Agents() {
   const [pointCloudSource, setPointCloudSource] = useState("obstmap"); // or "pointcloud"
   const [pointCloudTransport, setPointCloudTransport] = useState("raw"); // 'raw' | 'compressed' | 'combined'
   const POINTCLOUD_POLL_MS = 3000; // centralize poll rate
+  const [checkData, setCheckData] = useState([]);
+  const [pcStats, setPcStats] = useState(null);
 
 
-  const decompressor = new PointCloudDecompressor(3);
-  const [useCompression, setUseCompression] = useState(false);
+const decompressor = useMemo(() => new PointCloudDecompressor(3), []);
+  // const [useCompression, setUseCompression] = useState(false);
   const [videoStreamUrl, setVideoStreamUrl] = useState("");
   const [viewMode, setViewMode] = useState("stream");
   const [feedback, setFeedback] = useState({
@@ -212,34 +226,66 @@ function Ros2Agents() {
     message: "",
     severity: "info",
   });
+
   useEffect(() => {
-    let interval; // To store interval reference for cleanup
-  
-    // Helper function: fetches snapshot image and forces URL update to prevent browser caching
-    const fetchSnapshot = () => {
-      const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
-      setVideoStreamUrl(url); // Update React state to re-render image
-    };
-  
-    if (viewMode === "stream") {
-      // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
-      // Creates a realistic, smooth video-like effect (4 fps)
-      fetchSnapshot(); // Initial immediate fetch
-      interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
-    } else if (viewMode === "snapshot") {
-      // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
-      fetchSnapshot();
-  
-      if (autoSnapshot) {
-        // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
-        interval = setInterval(fetchSnapshot, 2000);
-      }
-      // Else: no interval set, snapshot stays static unless manually refreshed by the user
+  let interval;
+
+  const cameraKey = agents[selectedAgent].cameras[selectedCamera];
+
+  const setLive = () => {
+    // True live MJPEG stream via Flask proxy, no interval needed
+    const url = `${FLASK_API_BASE_URL}/proxy_camera_feed/${cameraKey}`;
+    setVideoStreamUrl(url);
+  };
+
+  const setSnapshotOnce = () => {
+    // Snapshot via Flask proxy (cache-busted)
+    const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${cameraKey}?t=${Date.now()}`;
+    setVideoStreamUrl(url);
+  };
+
+  if (viewMode === "stream") {
+    setLive();
+    // IMPORTANT: no interval for real MJPEG stream
+  } else {
+    setSnapshotOnce();
+    if (autoSnapshot) {
+      // You can make this 250ms to “simulate” video, or keep it lighter (e.g., 2s)
+      interval = setInterval(setSnapshotOnce, 2000);
     }
+  }
+
+  return () => clearInterval(interval);
+}, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
+
+  // useEffect(() => {
+  //   let interval; // To store interval reference for cleanup
   
-    // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
-    return () => clearInterval(interval);
-  }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
+  //   // Helper function: fetches snapshot image and forces URL update to prevent browser caching
+  //   const fetchSnapshot = () => {
+  //     const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+  //     setVideoStreamUrl(url); // Update React state to re-render image
+  //   };
+  
+  //   if (viewMode === "stream") {
+  //     // "Stream" mode selected: fetch snapshot immediately, then continuously at 250ms interval
+  //     // Creates a realistic, smooth video-like effect (4 fps)
+  //     fetchSnapshot(); // Initial immediate fetch
+  //     interval = setInterval(fetchSnapshot, 250); // Frequent updates for pseudo-live effect
+  //   } else if (viewMode === "snapshot") {
+  //     // "Snapshot" mode selected: fetch single snapshot immediately upon mode change
+  //     fetchSnapshot();
+  
+  //     if (autoSnapshot) {
+  //       // If user enabled "auto-snapshot", set slower periodic snapshot refresh (every 2 sec)
+  //       interval = setInterval(fetchSnapshot, 2000);
+  //     }
+  //     // Else: no interval set, snapshot stays static unless manually refreshed by the user
+  //   }
+  
+  //   // Cleanup: Clear interval whenever dependencies change to avoid memory leaks and duplicate intervals
+  //   return () => clearInterval(interval);
+  // }, [selectedCamera, selectedAgent, viewMode, autoSnapshot]);
   
   
   
@@ -275,7 +321,7 @@ function Ros2Agents() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
   if (!show3DView) return;
 
   let abort = false;
@@ -288,49 +334,96 @@ function Ros2Agents() {
         ? "/obstmap_compressed"
         : "/pointcloud_compressed";
     }
-    if (pointCloudTransport === "combined") return "/mapdata";
-    // default raw:
-    return pointCloudSource === "obstmap" ? "/obstmap" : "/pointcloud";
-  })();
 
-  const fetchPointCloud = async () => {
+  if (pointCloudTransport === "combined") return "/mapdata";
+  // default (raw JSON):
+  return pointCloudSource === "obstmap" ? "/obstmap" : "/pointcloud";
+})();
+
+
+ // Point cloud fetcher function
+// Point cloud fetcher function
+const fetchPointCloud = async () => {
   try {
-    // choose endpoint based on toggle
-    const endpoint = useCompression
-      ? `${pointCloudSource}_compressed`   // obstmap_compressed | pointcloud_compressed
-      : pointCloudSource;                  // obstmap | pointcloud
+    console.log("[PC] fetching", `${FLASK_API_BASE_URL}${endpoint}`, {
+      transport: pointCloudTransport,
+      source: pointCloudSource,
+    });
 
-    const res = await fetch(`${FLASK_API_BASE_URL}/${endpoint}`);
+    const tNet0 = performance.now();
+    const res = await fetch(`${FLASK_API_BASE_URL}${endpoint}`);
+    const tNet1 = performance.now();
+
+    if (!res.ok) {
+      console.error("[PC] HTTP error", res.status, res.statusText);
+      return;
+    }
+
+    // --- read server headers (added in backend) ---
+    const method = res.headers.get("X-PC-Method") || (pointCloudTransport === "raw" ? "raw-json" : "unknown");
+    const ptsHdr = Number(res.headers.get("X-PC-Points") || 0);
+    const wireBytes = Number(res.headers.get("X-PC-Encoded-Bytes") || 0);
+    const encMsServer = Number(res.headers.get("X-PC-Encode-MS") || 0);
+
+    const tParse0 = performance.now();
     const data = await res.json();
-    // console.log("Fetched point cloud:", data);
+    const tParse1 = performance.now();
 
-    if (useCompression) {
-      // compressed format
-      if (data.status === "ok" && data.compressed_data) {
-        const points = decompressor.decompressPointCloud(data.compressed_data);
-        setObstPoints(points);
-      } else {
-        console.error("Compressed endpoint error:", data.message || data.status);
-        setObstPoints([]);
+    console.log("[PC] raw payload keys:", Object.keys(data || {}));
+
+    let points = [];
+    let tDec0 = tParse1, tDec1 = tParse1;
+
+    if (pointCloudTransport === "compressed") {
+      // NEW packed schema (origin/scale/shape/data)
+      tDec0 = performance.now();
+      try {
+        points = decompressor.decompressPointCloud(data);
+      } catch (e) {
+        console.error("[PC] decompression failed:", e, data);
+        points = [];
       }
+      tDec1 = performance.now();
+    } else if (pointCloudTransport === "combined") {
+      const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
+      points = Array.isArray(arr) ? arr : [];
     } else {
-      // raw format (your original behavior)
+      // RAW JSON
       if (Array.isArray(data.points)) {
-        setObstPoints(data.points);
-      } else if (Array.isArray(data.obstmap) || Array.isArray(data.pointcloud)) {
-        const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
-        setObstPoints(arr || []);
+        points = data.points;
       } else {
-        setObstPoints([]);
+        const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
+        points = Array.isArray(arr) ? arr : [];
       }
     }
+
+    if (Array.isArray(points) && points.length > 0) {
+      setObstPoints(points);
+    }
+
+    // (your old checkData line was wrong for compressed; use points)
+    setCheckData(points);
+
+    // --- publish metrics to UI ---
+    setPcStats({
+      method,
+      points: ptsHdr || points.length,
+      wireKB: wireBytes ? (wireBytes / 1024).toFixed(1) : null,
+      netMs: (tNet1 - tNet0).toFixed(1),
+      parseMs: (tParse1 - tParse0).toFixed(1),
+      decodeMs: ((tDec1 - tDec0) || 0).toFixed(1),
+      encMsServer: encMsServer ? encMsServer.toFixed(1) : null,
+    });
+
   } catch (err) {
-    console.error("Failed to fetch point cloud:", err);
+    console.error("[PC] fetch error:", err);
+    // keep last good frame
   }
 };
 
 
-  fetchPointCloud(); // initial
+
+  fetchPointCloud(); 
   interval = setInterval(fetchPointCloud, POINTCLOUD_POLL_MS);
 
   return () => {
@@ -339,6 +432,53 @@ function Ros2Agents() {
     setObstPoints([]);
   };
 }, [show3DView, pointCloudSource, pointCloudTransport]);
+
+//   const fetchPointCloud = async () => {
+//   try {
+//     // choose endpoint based on toggle
+//     const endpoint = useCompression
+//       ? `${pointCloudSource}_compressed`   // obstmap_compressed | pointcloud_compressed
+//       : pointCloudSource;                  // obstmap | pointcloud
+
+//     const res = await fetch(`${FLASK_API_BASE_URL}/${endpoint}`);
+//     const data = await res.json();
+//     // console.log("Fetched point cloud:", data);
+
+//     if (useCompression) {
+//       // compressed format
+//       if (data.status === "ok" && data.compressed_data) {
+//         const points = decompressor.decompressPointCloud(data.compressed_data);
+//         setObstPoints(points);
+//       } else {
+//         console.error("Compressed endpoint error:", data.message || data.status);
+//         setObstPoints([]);
+//       }
+//     } else {
+//       // raw format (your original behavior)
+//       if (Array.isArray(data.points)) {
+//         setObstPoints(data.points);
+//       } else if (Array.isArray(data.obstmap) || Array.isArray(data.pointcloud)) {
+//         const arr = pointCloudSource === "obstmap" ? data.obstmap : data.pointcloud;
+//         setObstPoints(arr || []);
+//       } else {
+//         setObstPoints([]);
+//       }
+//     }
+//   } catch (err) {
+//     console.error("Failed to fetch point cloud:", err);
+//   }
+// };
+
+
+//   fetchPointCloud(); // initial
+//   interval = setInterval(fetchPointCloud, POINTCLOUD_POLL_MS);
+
+//   return () => {
+//     abort = true;
+//     clearInterval(interval);
+//     setObstPoints([]);
+//   };
+// }, [show3DView, pointCloudSource, pointCloudTransport]);
 
 // useEffect(() => {
 //   if (!show3DView) return;
@@ -453,46 +593,99 @@ function Ros2Agents() {
   };
 const handleCommandSubmit = (e) => {
   e.preventDefault();
-  if (commandInput.trim() !== "") {
-    try {
-      const parsedCommand = JSON.parse(commandInput);
 
-      // Special case for GPS goal command
-      if (parsedCommand.topic === "/command/send_goal") {
-        fetch(`${FLASK_API_BASE_URL}/command/send_goal`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(parsedCommand.command),
-        })
-          .then((res) => res.json())
-          .then((result) =>
-            setFeedback({
-              open: true,
-              message: result.message || "Goal sent!",
-              severity: "success",
-            })
-          )
-          .catch(() =>
-            setFeedback({
-              open: true,
-              message: "Failed to send GPS goal.",
-              severity: "error",
-            })
-          );
+  if (commandInput.trim() === "") return;
+
+  let parsedCommand;
+  try {
+    parsedCommand = JSON.parse(commandInput);
+  } catch (error) {
+    setFeedback({
+      open: true,
+      message: "Invalid JSON format.",
+      severity: "error",
+    });
+    return;
+  }
+
+  const topic = parsedCommand?.topic;
+  const cmd = parsedCommand?.command ?? {};
+
+  if (!topic) {
+    setFeedback({
+      open: true,
+      message: "Missing 'topic' field in JSON.",
+      severity: "error",
+    });
+    return;
+  }
+
+  // Helper: show success/error snackbar consistently
+  const showResult = (ok, result, fallbackSuccess, fallbackFail) => {
+    setFeedback({
+      open: true,
+      message: (result && result.message) || (ok ? fallbackSuccess : fallbackFail),
+      severity: ok ? "success" : "error",
+    });
+  };
+
+  // Route-specific handler map
+  const routeHandlers = {
+    "/command/send_goal": async () => {
+      // Expect: { topic:"/command/send_goal", command:{ latitude, longitude, z? } }
+      const body = cmd; // backend accepts flat body
+      const res = await fetch(`${FLASK_API_BASE_URL}/command/send_goal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json().catch(() => ({}));
+      showResult(res.ok, result, "GPS goal sent!", "Failed to send GPS goal.");
+    },
+
+    "/mpc/goal": async () => {
+      // Expect: { topic:"/mpc/goal", command:{ vx, vy, wz, hold? } }
+      const res = await fetch(`${FLASK_API_BASE_URL}/mpc/goal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cmd),
+      });
+      const result = await res.json().catch(() => ({}));
+      showResult(res.ok, result, "MPC goal sent!", "Failed to send MPC goal.");
+    },
+
+    "/command/send_local_goal": async () => {
+      // Expect: { topic:"/command/send_local_goal", command:{ x, y, yaw?, frame_id? } }
+      const res = await fetch(`${FLASK_API_BASE_URL}/command/send_local_goal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cmd),
+      });
+      const result = await res.json().catch(() => ({}));
+      showResult(res.ok, result, "Local goal sent!", "Failed to send local goal.");
+    },
+  };
+
+  // Execute either a route handler or default /command
+  (async () => {
+    try {
+      if (routeHandlers[topic]) {
+        await routeHandlers[topic]();
       } else {
-        // Default command route
-        sendCommand(selectedAgent, parsedCommand.topic, parsedCommand.command);
+        // Default command route (your existing behavior)
+        await sendCommand(selectedAgent, topic, cmd);
       }
 
       setCommandInput("");
-    } catch (error) {
+    } catch (err) {
+      console.error("Command submit error:", err);
       setFeedback({
         open: true,
-        message: "Invalid JSON format.",
+        message: "Command failed to send (network/backend error).",
         severity: "error",
       });
     }
-  }
+  })();
 };
 
   
@@ -533,15 +726,15 @@ const handleCommandSubmit = (e) => {
   
         <Button
           variant="outlined"
-          sx={{ my: 2 }}
+        sx={{ my: 2 }}
           onClick={() =>
-            setViewMode((prev) => (prev === "stream" ? "snapshot" : "stream"))
-          }
-        >
-          Switch to {viewMode === "stream" ? "Snapshot" : "Live Stream"} View
-        </Button>
-  
-        {viewMode === "snapshot" && (
+          setViewMode((prev) => (prev === "stream" ? "snapshot" : "stream"))
+        }
+      >
+  Switch to {viewMode === "stream" ? "Snapshot" : "Live Stream"} View
+      </Button>
+
+      {viewMode === "snapshot" && (
           <>
             <Button
               variant="contained"
@@ -638,6 +831,34 @@ const handleCommandSubmit = (e) => {
               
                <Box mt={4} mb={2}>
   <Typography variant="h6">3D Point Cloud Visualization</Typography>
+<Typography variant="body2" sx={{ mt: 1 }}>
+  Points received: {Array.isArray(checkData) ? checkData.length : 0}
+</Typography>
+
+{pcStats && (
+  <Box
+    sx={{
+      mt: 1,
+      p: 1,
+      fontFamily: 'monospace',
+      fontSize: 12,
+      bgcolor: '#111',
+      color: '#9f9',
+      borderRadius: 1,
+      lineHeight: 1.6,
+      maxWidth: 420,
+    }}
+  >
+    <div>method: {pcStats.method}</div>
+    <div>points: {pcStats.points}</div>
+    {pcStats.wireKB && <div>wire: {pcStats.wireKB} KB</div>}
+    <div>net: {pcStats.netMs} ms</div>
+    <div>parse: {pcStats.parseMs} ms</div>
+    <div>decode: {pcStats.decodeMs} ms</div>
+    {pcStats.encMsServer && <div>server-encode: {pcStats.encMsServer} ms</div>}
+  </Box>
+)}
+
 
   <Button
     variant={show3DView ? "contained" : "outlined"}
@@ -663,13 +884,13 @@ const handleCommandSubmit = (e) => {
      </Select>
    </FormControl>
 
-      <Button
+      {/* <Button
         variant={useCompression ? "contained" : "outlined"}
         sx={{ ml: 2 }}
         onClick={() => setUseCompression(v => !v)}
       >
         {useCompression ? "Compression: ON" : "Compression: OFF"}
-      </Button>
+      </Button> */}
 
       {/* Add this new Transport selector right here */}
       <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -798,18 +1019,15 @@ const handleCommandSubmit = (e) => {
     onClick={async () => {
       try {
         const response = await fetch(`${FLASK_API_BASE_URL}/command/send_goal`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-          topic: "/command/send_goal",
-          command: {
-          latitude: gpsGoal.lat,
-          longitude: gpsGoal.lng,
-          z: 0.0  
-  }
-}),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+        latitude: gpsGoal.lat,
+        longitude: gpsGoal.lng,
+        z: 0.0,
+      }),
+  });
 
-        });
         const result = await response.json();
         setFeedback({
           open: true,
