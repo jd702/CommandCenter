@@ -13,6 +13,18 @@ In the project directory, you can run:
 Runs the app in the development mode.\
 Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
+Gesture Control panel expects a local API on the GPU laptop:
+
+- Default: `http://localhost:7001`
+- Override: set `REACT_APP_GESTURE_API`
+
+Switching to a new laptop:
+- Start `scripts/gesture_api.py` on the new laptop
+- Set `REACT_APP_GESTURE_API=http://<new-laptop-ip>:7001`
+
+Quick Start:
+- `QUICKSTART.md`
+
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 

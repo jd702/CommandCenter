@@ -12,6 +12,7 @@ import Ros2Agents from "./pages/Ros2Agents";
 import AgentTracker from "./pages/AgentTracker"
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import SimDashboard from "./pages/SimDashboard";
+import GestureControl from "./pages/GestureControl";
 
 function AppRouter() {
   return (
@@ -28,6 +29,7 @@ function AppRouter() {
           <Route path="data-transformation" element={<DataTransformation />} />
           <Route path="Ros2Agents" element={<Ros2Agents />} />
           <Route path="agent-tracker" element={<AgentTracker />} />
+          <Route path="gesture-control" element={<GestureControl />} />
           <Route path="sim-dashboard" element={<SimDashboard />} />
           <Route path="*" element={<NoPageFound />} />
         </Route>

@@ -1,0 +1,23 @@
+.gesture-root {
+  padding: 8px 4px;
+}
+
+.gesture-panel {
+  padding: 16px;
+}
+
+.gesture-field {
+  margin-bottom: 12px;
+}
+
+.gesture-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.gesture-toggle {
+  margin-top: 12px;
+  color: #444;
+}

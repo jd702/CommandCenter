@@ -104,6 +104,13 @@ const sideBar = [
 
   {
     index: 9,
+    name: "Gesture Control",
+    path: "/gesture-control",
+    icon: <RobotIcon />,
+  },
+
+  {
+    index: 10,
     name: "Sim Dashboard",
     path: "/sim-dashboard",
     icon: <DashboardIcon />,

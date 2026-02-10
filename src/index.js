@@ -16,7 +16,7 @@ import DataTransformation from './pages/DataTransformation';
 import Ros2Agents from "./pages/Ros2Agents";
 import AgentTracker from "./pages/AgentTracker";
 import Login from "./pages/Login";
-
+import GestureControl from "./pages/GestureControl";
 // Context providers
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { IpProvider } from './context/IpContext';
@@ -68,6 +68,7 @@ function AppRouter() {
                     <Route path="data-transformation" element={<DataTransformation />} />
                     <Route path="Ros2Agents" element={<Ros2Agents />} />
                     <Route path="agent-tracker" element={<AgentTracker />} />
+                    <Route path="gesture-control" element={<GestureControl />} />
                     <Route path="*" element={<NoPageFound />} />
                     <Route path="sim-dashboard" element={<SimDashboard />} />
                   </Route>
