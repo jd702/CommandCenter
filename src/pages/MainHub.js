@@ -43,6 +43,7 @@ import SimDashboard from './SimDashboard'; // Import the SimDashboard component
 import RobotIcon from '@mui/icons-material/SmartToy'; // Import the robot icon
 import AugmentorUploader from "./DataTransformation";
 import { CameraAltRounded, RadioButtonChecked } from "@mui/icons-material";
+import { MISSION_CONTROL_URL } from "../utils/runtimeConfig";
 
 const drawerWidth = 240;
 
@@ -332,11 +333,17 @@ const MainHub = () => {
             </Typography>
            
           <Typography varirant= "h6"> Mission Control </Typography>
-          <iframe
-            title= "Mission Control Center"
-            style={{ width: '100%', height: '600px', border: "1px solid gray"}}
-            src= "http://192.168.168.105:5000/"
-          ></iframe>
+          {MISSION_CONTROL_URL ? (
+            <iframe
+              title="Mission Control Center"
+              style={{ width: "100%", height: "600px", border: "1px solid gray" }}
+              src={MISSION_CONTROL_URL}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              Set REACT_APP_MISSION_CONTROL_URL to embed an external mission dashboard.
+            </Typography>
+          )}
 
             <Typography variant="body1" gutterBottom className="welcome-message">
               This is the central hub for managing and monitoring the autonomous systems associated with Bowie State University. Use the navigation menu to access different sections.

@@ -20,8 +20,9 @@ import {
 import PointCloudViewer from "./PointCloudViewer";
 import {PointCloudDecompressor} from './Ros2Agents_with_HSFC'
 import { data } from "react-router-dom";
+import { ROBOT_API_BASE_URL } from "../utils/runtimeConfig";
 
-const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
+const FLASK_API_BASE_URL = ROBOT_API_BASE_URL;
 
 const agents = {
   ghost: {

@@ -52,10 +52,10 @@ export const IpProvider = ({ children }) => {
 //           throw new Error('Network response was not ok');
 //         }
 //         const config = await response.json();
-//         setIp(config.ssh_host || '192.168.1.144'); // Use default if not found
+//         setIp(config.ssh_host || 'ROBOT_HOST'); // Use default if not found
 //       } catch (error) {
 //         console.error('Error loading initial IP:', error);
-//         setIp('192.168.1.144'); // Fallback to default IP
+//         setIp('ROBOT_HOST'); // Fallback to default host
 //       }
 //     };
 
@@ -76,7 +76,7 @@ export const IpProvider = ({ children }) => {
 // export const IpContext = createContext();
 
 // export const IpProvider = ({ children }) => {
-//   const [ip, setIp] = useState('192.168.1.144');
+//   const [ip, setIp] = useState('ROBOT_HOST');
 
 //   return (
 //     <IpContext.Provider value={{ ip, setIp }}>

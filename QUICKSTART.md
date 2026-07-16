@@ -1,48 +1,74 @@
-# Command Center Quick Start (Gesture Control)
+# Command Center Quick Start
 
-This quick start assumes:
-- Vision‑60 is online and running `move13.py` (Flask ROS2 API)
-- GPU laptop will run gesture inference + local control API
-
-## 1) Start Local Gesture API (GPU Laptop)
+## 1. Configure the UI
 
 ```bash
-cd /home/bert/CommandCenter/GestureControl_MMPOSE_YOLO
-python scripts/gesture_api.py
+cp .env.example .env.local
 ```
 
-Default API: `http://localhost:7001`
+Set deployment-specific hosts in `.env.local`:
 
-If Vision‑60 IP changes, set env vars:
-
-```bash
-export GESTURE_FLASK_URL=http://<vision60-ip>:5002
-export GESTURE_ROS_CAMERA=http://<vision60-ip>:8080
-python scripts/gesture_api.py
+```dotenv
+REACT_APP_ROBOT_API_URL=http://ROBOT_HOST:5002
+REACT_APP_GESTURE_API=http://GESTURE_HOST:7001
 ```
 
-## 2) Start Command Center UI
+Do not commit `.env.local`.
+
+## 2. Start Command Center
 
 ```bash
-cd /home/bert/CommandCenter/CommandUI
+npm install
 npm start
 ```
 
-Open `http://localhost:3000` and click **Gesture Control** in the sidebar.
+Open `http://localhost:3000`.
 
-## 3) Use Gesture Control Panel
+## 3. Start the robot backend
 
-- **Start** launches the gesture script
-- **Stop** ends it
-- **Next/Prev Camera** cycles
-- Status shows current camera + last gesture
-
-## 4) Switching to a New Laptop
-
-- Copy this repo to the new laptop
-- Start `scripts/gesture_api.py` on the new laptop
-- Set UI env var if the UI is running elsewhere:
+On the ROS2-enabled robot computer:
 
 ```bash
-REACT_APP_GESTURE_API=http://<new-laptop-ip>:7001 npm start
+export ROS_CAMERA_BASE_URL=http://ROBOT_HOST:8080
+python3 backend/move13.py
 ```
+
+The backend requires the robot's ROS2 packages and topics. Use the actual host only in local environment configuration.
+
+## 4. Optional feature services
+
+Data Transformation:
+
+```bash
+docker load -i /path/to/data-transformation.tar
+docker run --rm -p 5000:5000 data-transformation:latest
+```
+
+Gesture Control:
+
+```bash
+export GESTURE_FLASK_URL=http://ROBOT_HOST:5002
+export GESTURE_ROS_CAMERA=http://ROBOT_HOST:8080
+python3 GestureControl_MMPOSE_YOLO/scripts/gesture_api.py
+```
+
+Voice Control:
+
+```bash
+export VOICE_FLASK_API=http://ROBOT_HOST:5002
+python3 VoiceControl/VoiceControl4.py
+```
+
+OpenAMASE Simulation Dashboard:
+
+- Start the LMCP-to-Socket.IO bridge on `http://localhost:5001`.
+- Open **Sim Dashboard** in Command Center.
+
+## 5. Operator checks
+
+- Confirm robot status, battery, GPS, IMU, and odometry are updating.
+- Test motion with dry-run or a secured robot area first.
+- Verify E-stop behavior before autonomous or gesture-driven motion.
+- Confirm queued, doing, and done task states against backend mission status.
+
+See [README.md](README.md) and [docs/HSLA.md](docs/HSLA.md) for feature and architecture context.

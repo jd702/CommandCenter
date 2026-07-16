@@ -1,84 +1,89 @@
-# Acoustic Sensor
+# Command Center
 
-# Getting Started with Create React App
+Command Center is a React-based operator interface for robot tasking, telemetry, sensing, simulation, and Vision 60 / Ghost Robotics workflows.
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Core capabilities
 
-## Available Scripts
+- Dynamic task entry and command history
+- Task-state model for queued, doing, and done work
+- Vision 60 motion, action, gait, mission, and safety controls
+- GPS, IMU, odometry, battery, diagnostics, and MBLink telemetry
+- Live camera, obstacle map, and point-cloud visualization
+- Hilbert space-filling curve point-cloud compression
+- Audio and visual sensor collection
+- Image data transformation through the Augmentor service
+- Agent tracking, OpenAMASE simulation, gesture control, and voice control
+- Lidar mapping, relocalization, saved-map previews, and AprilTag support
 
-In the project directory, you can run:
+## Quick start
 
-### `npm start`
+Requirements:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Node.js 18 or newer
+- npm
+- Optional feature services described in [QUICKSTART.md](QUICKSTART.md)
 
-Gesture Control panel expects a local API on the GPU laptop:
+```bash
+git clone https://github.com/jd702/CommandCenter.git
+cd CommandCenter
+cp .env.example .env.local
+npm install
+npm start
+```
 
-- Default: `http://localhost:7001`
-- Override: set `REACT_APP_GESTURE_API`
+Open `http://localhost:3000`.
 
-Switching to a new laptop:
-- Start `scripts/gesture_api.py` on the new laptop
-- Set `REACT_APP_GESTURE_API=http://<new-laptop-ip>:7001`
+Authentication is disabled by default for local development. See [Security](#security) before deploying the application beyond a trusted development network.
 
-Quick Start:
-- `QUICKSTART.md`
+## Runtime configuration
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+Edit `.env.local`; do not commit it.
 
-### `npm test`
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `REACT_APP_ROBOT_API_URL` | Flask + ROS2 robot API | `http://127.0.0.1:5002` |
+| `REACT_APP_GESTURE_API` | Gesture process API | `http://localhost:7001` |
+| `REACT_APP_MISSION_CONTROL_URL` | Optional embedded mission dashboard | disabled |
+| `REACT_APP_GOOGLE_MAPS_API_KEY` | Optional browser-restricted Maps key | disabled |
+| `REACT_APP_AUTH_MODE` | `disabled` or local-only `demo` mode | `disabled` |
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Values prefixed with `REACT_APP_` are bundled into browser JavaScript and must never contain secrets.
 
-### `npm run build`
+## Dynamic tasking
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+The tasking interface accepts predefined or operator-entered commands and sends them to the configured backend. Command history is retained locally for operator traceability. The mission integration provides the foundation for task lifecycle reporting:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+- `queued`: accepted and waiting for execution
+- `doing`: active mission or command
+- `done`: completed or closed task
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Backend mission status should remain the source of truth when the UI is connected to a robot.
 
-### `npm run eject`
+## Documentation
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- [Quick start and feature services](QUICKSTART.md)
+- [High-Level System Architecture](docs/HSLA.md)
+- [Public repository security](docs/SECURITY.md)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Demo video
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+The merged Command Center demonstration is distributed as a GitHub Release asset instead of being committed to Git history. This keeps normal clones small while allowing the original MP4 to be downloaded from the repository's Releases page.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Build and test
 
-## Learn More
+```bash
+npm test -- --watchAll=false
+npm run build
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Security
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+- Keep `.env.local`, credentials, tokens, robot addresses, and deployment-specific configuration out of Git.
+- Use placeholders such as `ROBOT_HOST` in public documentation.
+- The built-in demo authentication mode is not production authentication; enforce production identity and authorization server-side.
+- Review [docs/SECURITY.md](docs/SECURITY.md) before publishing or deploying.
 
-### Code Splitting
+## Related projects
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- [Voice Control](https://github.com/jd702/VoiceControl)
+- [Gesture Control](https://github.com/jd702/GestureControl)

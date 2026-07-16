@@ -14,8 +14,9 @@ import {
 
 import markerIconPng from "leaflet/dist/images/marker-icon.png";
 import markerShadowPng from "leaflet/dist/images/marker-shadow.png";
+import { ROBOT_API_BASE_URL } from "../utils/runtimeConfig";
 
-const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
+const FLASK_API_BASE_URL = ROBOT_API_BASE_URL;
 
 const customIcon = new L.Icon({
   iconUrl: markerIconPng,
@@ -163,7 +164,7 @@ import markerIconPng from "leaflet/dist/images/marker-icon.png";
 import markerShadowPng from "leaflet/dist/images/marker-shadow.png";
 import axios from "axios";
 
-const FLASK_API_BASE_URL = "http://192.168.168.105:5002";
+const FLASK_API_BASE_URL = "http://ROBOT_HOST:5002";
 
 // Define custom icon
 const customIcon = new L.Icon({

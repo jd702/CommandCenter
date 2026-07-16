@@ -1126,7 +1126,7 @@ def metrics():
 
 # ------------------- Proxy Camera Streaming (Optional Future Section) --------------------
 
-ROS_CAMERA_BASE_URL = 'http://192.168.168.105:8080'
+ROS_CAMERA_BASE_URL = os.environ.get('ROS_CAMERA_BASE_URL', 'http://127.0.0.1:8080')
 
 
 PROXY_CAMERA_TOPICS = {
@@ -1313,6 +1313,5 @@ def proxy_camera_snapshot(camera):
 if __name__ == '__main__':
     print("Starting ROS2 Flask API Server...")
     app.run(host='0.0.0.0', port=5002, threaded=True)
-
 
 
