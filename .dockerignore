@@ -1,0 +1,14 @@
+.git
+node_modules
+build
+*.pyc
+__pycache__
+.venv
+.env
+.env.*
+!.env.example
+*.zip
+*.tar
+*.tar.gz
+*.mp4
+*.mov

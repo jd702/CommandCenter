@@ -1,0 +1,54 @@
+tag_family: tag36h11
+publish_tf: true
+image_msgs_decimation: 1
+publish_tag_detections_image: true
+
+standalone_tags:
+  - id: 0
+    size: 0.1651
+    name: lab
+  - id: 1
+    size: 0.1651
+    name: tag_01
+  - id: 2
+    size: 0.1651
+    name: tag_02
+  - id: 3
+    size: 0.1651
+    name: tag_03
+  - id: 4
+    size: 0.1651
+    name: tag_04
+  - id: 5
+    size: 0.1651
+    name: tag_05
+  - id: 6
+    size: 0.1651
+    name: tag_06
+  - id: 7
+    size: 0.1651
+    name: tag_07
+  - id: 8
+    size: 0.1651
+    name: tag_08
+  - id: 9
+    size: 0.1651
+    name: tag_09
+  - id: 10
+    size: 0.1651
+    name: tag_10
+  - id: 11
+    size: 0.1651
+    name: tag_11
+  - id: 12
+    size: 0.1651
+    name: tag_12
+  - id: 13
+    size: 0.1651
+    name: tag_13
+  - id: 14
+    size: 0.1651
+    name: tag_14
+  - id: 15
+    size: 0.1651
+    name: tag_15

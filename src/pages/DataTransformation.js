@@ -22,6 +22,7 @@ import {
 import { useDropzone } from "react-dropzone";
 // Import image comparison component
 import ReactCompareImage from "react-compare-image";
+import { AUGMENTOR_BASE_URL } from "../utils/runtimeConfig";
 
 // Define available filters and their parameters
 const filters = {
@@ -147,13 +148,13 @@ const handleSubmit = async (e) => {
     setLoading(true);
 
     // Send POST request to backend
-    const res = await axios.post("http://localhost:5000/", formData, {
+    const res = await axios.post(`${AUGMENTOR_BASE_URL}/`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
 
     // Set processed image URLs from the backend response
     const urls = res.data.processed.map(file =>
-      `http://localhost:5000/processed/${file.filename}?t=${Date.now()}`
+      `${AUGMENTOR_BASE_URL}/processed/${file.filename}?t=${Date.now()}`
     );
     setProcessedImageUrl(urls);
 

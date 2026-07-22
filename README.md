@@ -42,7 +42,9 @@ Edit `.env.local`; do not commit it.
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `REACT_APP_ROBOT_API_URL` | Flask + ROS2 robot API | `http://127.0.0.1:5002` |
+| `REACT_APP_AUGMENTOR_URL` | Data Transformation API | `http://127.0.0.1:5000` |
 | `REACT_APP_GESTURE_API` | Gesture process API | `http://localhost:7001` |
+| `REACT_APP_SIM_SOCKET_URL` | Simulation Socket.IO bridge | `http://127.0.0.1:5001` |
 | `REACT_APP_MISSION_CONTROL_URL` | Optional embedded mission dashboard | disabled |
 | `REACT_APP_GOOGLE_MAPS_API_KEY` | Optional browser-restricted Maps key | disabled |
 | `REACT_APP_AUTH_MODE` | `disabled` or local-only `demo` mode | `disabled` |
@@ -62,8 +64,25 @@ Backend mission status should remain the source of truth when the UI is connecte
 ## Documentation
 
 - [Quick start and feature services](QUICKSTART.md)
+- [Complete feature run guide](docs/CommandCenter_Run_Guide.md)
+- [July 16, 2026 weekly delivery](docs/Weekly_Update_2026-07-16.md)
+- [Project work report](docs/CommandCenter_Work_Report.md)
 - [High-Level System Architecture](docs/HSLA.md)
 - [Public repository security](docs/SECURITY.md)
+
+## Docker start
+
+The default Compose stack starts the Command Center web UI and Data Transformation
+service. The optional `tools` profile also starts the Hilbert compression API.
+
+```bash
+cp docker.env.example .env
+docker compose up --build
+docker compose --profile tools up --build
+```
+
+Open `http://localhost:3000`. Robot, gesture, and simulation backends remain external
+because they require robot ROS2, GPU inference, or simulator-specific runtimes.
 
 ## Demo video
 

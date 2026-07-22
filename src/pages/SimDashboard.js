@@ -2,8 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import io from 'socket.io-client';
 import { Box, Typography, Paper, Button, Divider } from '@mui/material';
 import MapView from '../pages/MapView';
-
-const SOCKET_URL = 'http://localhost:5001'; // change if your bridge runs elsewhere
+import { SIM_SOCKET_URL } from '../utils/runtimeConfig';
 
 function SimDashboard() {
   // map-focused state (keeps your current behavior)
@@ -28,7 +27,7 @@ function SimDashboard() {
   }, [vehicles, selectedId]);
 
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
+    const socket = io(SIM_SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,

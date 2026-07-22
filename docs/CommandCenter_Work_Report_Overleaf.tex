@@ -1,0 +1,307 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue
+}
+
+\setstretch{1.12}
+\setlist[itemize]{leftmargin=1.5em}
+\titleformat{\section}{\large\bfseries}{}{0em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+
+\title{Command Center Project Work Report}
+\author{Prepared for Project Review}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Overview}
+
+This report summarizes the work completed on the Command Center project over the course of development. The project expanded from a basic command-and-control interface into a broader robotics operations platform supporting user tasking, mission control, telemetry, sensing workflows, point cloud visualization and compression, simulation, and alternative operator control methods.
+
+One of the central goals of the project was to provide a user interface that allows operators to specify user-initiated tasks and monitor the current task state in a clear way, including whether a task is queued, in progress, or completed. Related to that goal, a major emphasis was placed on building a dynamic tasking interface that could support mission-control behavior rather than acting only as a static display.
+
+The work described below covers the major areas completed across the frontend, backend, robotics integration layer, supporting tools, and project documentation.
+
+\section{Primary Development Objective}
+
+An important system objective was the development of a dynamic tasking interface that supports operator-initiated actions and exposes task state in a meaningful way. The intended workflow was to allow a user to:
+
+\begin{itemize}
+  \item specify a task or command through the interface
+  \item submit it to the system for execution
+  \item track whether it is queued
+  \item track whether it is actively being performed
+  \item track whether it is completed
+\end{itemize}
+
+This objective shaped a significant portion of the project. As a result, Command Center was developed not just as a visualization dashboard, but as an interface for dynamic tasking, command submission, operational feedback, and mission-state awareness.
+
+\section{Application Foundation And User Interface}
+
+The first major phase of work focused on establishing the structure of the Command Center application itself. A shared interface shell was developed around a sidebar-based navigation model with routed pages so that the system could scale as new operational workflows were added.
+
+The resulting UI structure includes the following major user-facing sections:
+
+\begin{itemize}
+  \item Home
+  \item Sensor Audio Collection
+  \item Camera Visual Data Collection
+  \item Tasking
+  \item Settings
+  \item History
+  \item Data Transformation
+  \item ROS2 Agents
+  \item Agent Tracker
+  \item Gesture Control
+  \item Sim Dashboard
+\end{itemize}
+
+This foundational work made it possible to organize all later functionality within one coherent operator environment rather than a set of disconnected tools.
+
+\section{Tasking Interface And Task-State Oriented Workflow}
+
+The tasking system became one of the core components of the project. A dedicated Tasking page was developed to support dynamic operator-issued commands. This interface allows the user to:
+
+\begin{itemize}
+  \item select a robot or sensor target
+  \item choose predefined task or command templates
+  \item enter custom command text
+  \item submit tasks through the backend
+  \item review command output
+  \item maintain a persistent history of task submissions
+\end{itemize}
+
+In addition to the direct task-entry workflow, supporting pages such as Settings and History were added so the operator can configure the relevant backend endpoints and review what has already been issued.
+
+From a reporting standpoint, this area of work directly supports the overall project goal of a user-initiated dynamic tasking interface. Even where a full formal queue-state pipeline is still evolving, the application now contains the structural pieces needed for user submission, backend execution, command tracking, and task-status visibility.
+
+\section{Sensor Collection And Data-Oriented Workflows}
+
+\subsection{Audio Collection}
+
+A sensor audio collection workflow was added so that the system can display live audio classification results inside Command Center. This functionality includes:
+
+\begin{itemize}
+  \item live result updates
+  \item anomaly status display
+  \item confidence display
+  \item playback of captured audio samples
+  \item text-to-speech rendering of predicted classes
+\end{itemize}
+
+This work extended Command Center beyond tasking alone and made it useful for operational sensing workflows.
+
+\subsection{Camera Visual Collection}
+
+A camera visual data collection workflow was also implemented. This provides:
+
+\begin{itemize}
+  \item visual result display
+  \item anomaly reporting
+  \item image result history
+  \item capture-oriented workflow integration
+\end{itemize}
+
+Together, the audio and visual pages support field and research scenarios where Command Center is used to manage and inspect sensor-driven outputs.
+
+\subsection{Data Transformation And Augmentation}
+
+A dedicated Data Transformation page was implemented to support image upload, transformation, preview, and result comparison. Supported transformations include blur, noise, rotation, flip, posterization, cutout, erosion, dilation, edge detection, and brightness/contrast adjustment.
+
+This area of work demonstrates that the project supported not only operational robot control but also data-conditioning and augmentation workflows.
+
+Review of the repository and SSD backup confirmed that the Data Transformation page is tied to the Augmentor-style backend that was later packaged as a \texttt{data-transformation} container image. This indicates that the augmentation backend was operationalized as a deployable service so it could integrate cleanly with Command Center on a fixed local interface.
+
+\section{ROS2, Vision 60, And Ghost Robotics Integration}
+
+As the project progressed, the scope expanded significantly into robotics integration, especially around Vision 60 and Ghost Robotics.
+
+The backend was extended to:
+
+\begin{itemize}
+  \item publish robot motion and mode commands
+  \item subscribe to telemetry and robot-state topics
+  \item expose REST endpoints for frontend control
+  \item provide access to GPS, IMU, battery, and odometry data
+  \item expose camera proxy endpoints
+  \item expose point cloud and obstacle-map data
+  \item support mission-related and low-level telemetry workflows
+\end{itemize}
+
+On the frontend, the ROS2 Agents page became the central operational interface for those capabilities. It now supports direct control commands, camera selection, live and snapshot viewing, autonomous planner requests, lidar-related controls, mission integration, and low-level robot-state visibility.
+
+\section{Mission Control, Dynamic Tasking, And Ghost Mission Bridge}
+
+The project objective around dynamic tasking also influenced the mission-control architecture. After inspection of the live Vision 60 stack and the Ghost-native mission interfaces, the design direction was adjusted so that Command Center could align more closely with the robot's actual mission workflow.
+
+Instead of relying only on a synthetic local task queue, a Ghost mission bridge was added so that the platform could work with built-in mission scripts and mission-control topics. This included support for:
+
+\begin{itemize}
+  \item running named mission scripts
+  \item starting missions
+  \item pausing missions
+  \item unpausing missions
+  \item canceling missions
+  \item monitoring mission runtime state
+\end{itemize}
+
+From a reporting perspective, this is directly relevant to the original dynamic tasking goal because it extends the system from simple command submission into mission-level execution and task-state awareness. It also provides a stronger path toward representing task progress in terms such as queued, doing, and done.
+
+\section{Lidar, Relocalization, And Indoor Operation Support}
+
+The project also expanded into lidar and relocalization workflows for indoor and GPS-denied operation. Controls and visibility were added for:
+
+\begin{itemize}
+  \item activating LIO
+  \item restarting relocalization
+  \item enabling AprilTag support
+  \item saving lidar maps
+  \item tracking relocalization status
+  \item viewing saved map previews
+  \item exposing map directory and save-state details
+\end{itemize}
+
+This work moved Command Center beyond teleoperation into more realistic autonomy-support behavior for indoor mission scenarios.
+
+\section{Point Cloud Pipeline And Hilbert Compression}
+
+One of the more technical areas completed in the project was the point cloud pipeline. Support was added for live point cloud and obstacle-map access, along with frontend visualization and backend transport improvements.
+
+In particular, Hilbert space-filling curve based compression was implemented and documented for point cloud transport. This work included:
+
+\begin{itemize}
+  \item compressed point cloud endpoints
+  \item transport selection between raw and compressed payloads
+  \item payload and timing metrics
+  \item frontend inspection of wire size, parse time, decode time, and encoding time
+  \item 3D visualization support inside Command Center
+\end{itemize}
+
+This represents an important technical contribution because it combined backend optimization, data encoding, and operator-facing visualization in one workflow.
+
+\section{Low-Level MBLink And GhostSDK Telemetry Integration}
+
+Another major expansion area was low-level robot-state visibility. Rather than limiting Command Center to high-level commands, the platform was extended to include operational insight derived from MBLink and GhostSDK-related interfaces.
+
+Completed capabilities in this area include:
+
+\begin{itemize}
+  \item low-level telemetry endpoints
+  \item behavior and mode visibility
+  \item diagnostics decoding
+  \item parameter read/write workflows
+  \item desired SE(2) twist visibility
+  \item joint-level telemetry summaries
+  \item contact, gait phase, and swing-state awareness
+\end{itemize}
+
+The frontend was updated with a low-level telemetry panel so the operator can interact with these capabilities directly. This significantly improved the usefulness of Command Center as an operations tool because it exposes more of the actual robot state and health.
+
+\section{Live Tracking And Situational Awareness}
+
+The Agent Tracker page was added to support live map-based situational awareness. This page polls GPS, status, IMU, and odometry information and displays the tracked platform on a live map.
+
+This functionality provides a dedicated view for operator awareness during live operation and supports a clearer operational picture than a text-only telemetry display.
+
+\section{Simulation Support}
+
+Simulation support was also added through the Sim Dashboard. This page listens to live updates over Socket.IO, tracks vehicle state, displays map positions, and supports command injection such as automation requests.
+
+This extended Command Center beyond physical robot integration and made it useful for simulation-based testing and mission rehearsal workflows as well.
+
+\section{Gesture Control}
+
+Gesture control was implemented as one of the more distinctive control pathways in the project. The completed system connects a GPU-laptop inference pipeline to robot commands through a local API and operator-facing control page.
+
+Implemented pieces include:
+
+\begin{itemize}
+  \item a Command Center gesture-control page
+  \item a local gesture API for starting, stopping, and monitoring the process
+  \item support for camera switching and multiple camera modes
+  \item MMPose WholeBody and RTMDet integration
+  \item gesture-to-command mapping for motion and stop behaviors
+\end{itemize}
+
+Supporting quick-start and architecture documentation was also added so the feature could be launched and demonstrated in practice.
+
+\section{Voice Control}
+
+Voice control support was added using Whisper. This workflow records microphone input, transcribes commands, interprets movement and action intent, and sends the appropriate backend request to the robot.
+
+This added another operator control modality and demonstrated that Command Center could support more than conventional GUI-based interaction.
+
+\section{Indoor Localization And AprilTag Tooling}
+
+Indoor localization planning and support became another major area of work, especially in relation to Vision 60 operation. This included documenting observations from the live system, identifying integration gaps for indoor operation, and providing practical tools for an AprilTag-assisted relocalization workflow.
+
+Completed support in this area includes:
+
+\begin{itemize}
+  \item detailed AprilTag usage documentation
+  \item indoor localization planning notes
+  \item Ghost stack findings from live inspection
+  \item a generator script for producing AprilTag print packs and configuration files
+\end{itemize}
+
+This work is important because it shows that the project addressed not only the current system state but also the longer-term reliability needs of indoor and GPS-denied operation.
+
+\section{Documentation And Run Support}
+
+Project documentation was also expanded so that the system and its major features can be launched and understood more easily. Documentation now exists for:
+
+\begin{itemize}
+  \item running Command Center itself
+  \item running the Vision 60 backend
+  \item running the Data Transformation backend
+  \item running Gesture Control
+  \item running Voice Control
+  \item understanding the role of the Hilbert compression service
+\end{itemize}
+
+This is a meaningful part of the completed work because systems of this size become much more useful when they are accompanied by repeatable run instructions and technical context.
+
+\section{Overall Contribution Summary}
+
+Overall, the completed work transformed Command Center into a broad and integrated robotics operations platform.
+
+The work spanned:
+
+\begin{itemize}
+  \item frontend UI development
+  \item dynamic tasking workflows
+  \item backend API development
+  \item robot command and telemetry integration
+  \item mission workflow support
+  \item point cloud compression and visualization
+  \item sensor data workflows
+  \item gesture and voice interfaces
+  \item simulation support
+  \item localization planning and AprilTag tooling
+  \item technical documentation and runbooks
+\end{itemize}
+
+What began as a command-and-control interface developed into a much more capable system supporting operations, perception, autonomy support, data transformation, and multiple control modalities.
+
+\section{Closing Statement}
+
+In summary, the Command Center project delivered much more than a basic interface. It now includes a dynamic tasking foundation, user-driven command submission, mission-level integration, telemetry and sensing visibility, Hilbert space-filling curve point cloud compression, live tracking, simulation support, data transformation workflows, gesture and voice control, and indoor localization support assets.
+
+The overall body of work reflects the development of a practical and extensible operator platform intended to support both live robotics workflows and future mission-control expansion.
+
+\end{document}

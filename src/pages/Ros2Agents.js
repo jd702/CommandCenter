@@ -15,14 +15,14 @@ import {
   FormControl,
   InputLabel,
   Switch,
+  Chip,
 
 } from "@mui/material";
 import PointCloudViewer from "./PointCloudViewer";
 import {PointCloudDecompressor} from './Ros2Agents_with_HSFC'
-import { data } from "react-router-dom";
-import { ROBOT_API_BASE_URL } from "../utils/runtimeConfig";
+import getRuntimeConfig from "../utils/runtimeConfig";
 
-const FLASK_API_BASE_URL = ROBOT_API_BASE_URL;
+const FLASK_API_BASE_URL = getRuntimeConfig().robotApiUrl;
 
 const agents = {
   ghost: {
@@ -195,12 +195,75 @@ const predefinedCommands = {
 
 };
 
+const KEYBOARD_PROFILES = [
+  { value: "wasd", label: "WASD + QE (strafe/turn)" },
+  { value: "arrows", label: "Arrow Keys + ,/." },
+  { value: "ijkl", label: "IJKL + U/O" },
+  { value: "numpad", label: "Numpad 8/2/4/6/7/9" },
+];
+
+const KEYBOARD_BINDINGS = {
+  wasd: {
+    forward: ["KeyW"],
+    backward: ["KeyS"],
+    strafe_left: ["KeyA"],
+    strafe_right: ["KeyD"],
+    turn_left: ["KeyQ"],
+    turn_right: ["KeyE"],
+    stop: ["Space", "KeyX"],
+  },
+  arrows: {
+    forward: ["ArrowUp"],
+    backward: ["ArrowDown"],
+    strafe_left: ["Comma"],
+    strafe_right: ["Period"],
+    turn_left: ["ArrowLeft"],
+    turn_right: ["ArrowRight"],
+    stop: ["Slash", "Space"],
+  },
+  ijkl: {
+    forward: ["KeyI"],
+    backward: ["KeyK"],
+    strafe_left: ["KeyU"],
+    strafe_right: ["KeyO"],
+    turn_left: ["KeyJ"],
+    turn_right: ["KeyL"],
+    stop: ["KeyM", "Space"],
+  },
+  numpad: {
+    forward: ["Numpad8"],
+    backward: ["Numpad2"],
+    strafe_left: ["Numpad7"],
+    strafe_right: ["Numpad9"],
+    turn_left: ["Numpad4"],
+    turn_right: ["Numpad6"],
+    stop: ["Numpad5", "Numpad0"],
+  },
+};
+
+const JOINT_TEMP_WARN = 75;
+const JOINT_TEMP_CRIT = 85;
+const JOINT_CURRENT_WARN = 12;
+
+const safeArray = (value) => (Array.isArray(value) ? value : []);
+
+const summarizeArray = (value) => {
+  const arr = safeArray(value).filter((n) => Number.isFinite(Number(n))).map(Number);
+  if (!arr.length) return { count: 0, min: 0, max: 0, avg: 0 };
+  const min = Math.min(...arr);
+  const max = Math.max(...arr);
+  const avg = arr.reduce((sum, n) => sum + n, 0) / arr.length;
+  return { count: arr.length, min, max, avg };
+};
+
 
 function Ros2Agents() {
   const [selectedAgent, setSelectedAgent] = useState("ghost");
   const [selectedCamera, setSelectedCamera] = useState("Front Left");
   const [batteryStatus, setBatteryStatus] = useState("Unknown");
   const [gpsData, setGpsData] = useState({ lat: 0, lng: 0 });
+  const [imuData, setImuData] = useState(null);
+  const [odomData, setOdomData] = useState(null);
   const [gpsGoal, setGpsGoal] = useState({ lat: 0, lng: 0});
   const [commandInput, setCommandInput] = useState("");
   const [movementDuration, setMovementDuration] = useState(1);
@@ -216,6 +279,22 @@ function Ros2Agents() {
   const POINTCLOUD_POLL_MS = 3000; // centralize poll rate
   const [checkData, setCheckData] = useState([]);
   const [pcStats, setPcStats] = useState(null);
+  const [ghostRuntime, setGhostRuntime] = useState(null);
+  const [ghostScripts, setGhostScripts] = useState({});
+  const [saveMapDestination, setSaveMapDestination] = useState("");
+  const [saveMapResolution, setSaveMapResolution] = useState(-30);
+
+  const [keyboardEnabled, setKeyboardEnabled] = useState(false);
+  const [keyboardProfile, setKeyboardProfile] = useState("wasd");
+  const [keyboardSpeed, setKeyboardSpeed] = useState(0.6);
+  const [keyboardStrafeSpeed, setKeyboardStrafeSpeed] = useState(0.6);
+  const [keyboardTurnSpeed, setKeyboardTurnSpeed] = useState(1.0);
+  const [keyboardTurbo, setKeyboardTurbo] = useState(1.6);
+  const [keyboardError, setKeyboardError] = useState("");
+  const [keyboardStatus, setKeyboardStatus] = useState({
+    enabled: false,
+    pressed: [],
+  });
 
 
 const decompressor = useMemo(() => new PointCloudDecompressor(3), []);
@@ -227,6 +306,174 @@ const decompressor = useMemo(() => new PointCloudDecompressor(3), []);
     message: "",
     severity: "info",
   });
+  const [lowLevelTelemetry, setLowLevelTelemetry] = useState(null);
+  const [diagBitfieldInput, setDiagBitfieldInput] = useState("0");
+  const [paramName, setParamName] = useState("");
+  const [paramValue, setParamValue] = useState("");
+  const [paramFeedback, setParamFeedback] = useState("");
+
+  const postJson = async (path, body = {}) => {
+    const response = await fetch(`${FLASK_API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || `Request failed: ${path}`);
+    }
+    return payload;
+  };
+
+  const showFeedback = (message, severity = "info") => {
+    setFeedback({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  const shouldIgnoreKeyTarget = (target) => {
+    if (!target) return false;
+    const tag = target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+    return Boolean(target.isContentEditable);
+  };
+
+  const getProfileKeySet = (profile) => {
+    const p = KEYBOARD_BINDINGS[profile] || KEYBOARD_BINDINGS.wasd;
+    return new Set([
+      ...p.forward,
+      ...p.backward,
+      ...p.strafe_left,
+      ...p.strafe_right,
+      ...p.turn_left,
+      ...p.turn_right,
+      ...p.stop,
+      "ShiftLeft",
+      "ShiftRight",
+    ]);
+  };
+
+  const fetchKeyboardStatus = async () => {
+    const res = await fetch(`${FLASK_API_BASE_URL}/keyboard/status`);
+    if (!res.ok) {
+      throw new Error("Failed to get keyboard status");
+    }
+    const data = await res.json();
+    setKeyboardStatus({
+      enabled: Boolean(data.enabled),
+      pressed: Array.isArray(data.pressed) ? data.pressed : [],
+    });
+  };
+
+  const postKeyboardConfig = async () => {
+    const res = await fetch(`${FLASK_API_BASE_URL}/keyboard/enable`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        profile: keyboardProfile,
+        speed: keyboardSpeed,
+        strafe_speed: keyboardStrafeSpeed,
+        turn_speed: keyboardTurnSpeed,
+        turbo: keyboardTurbo,
+        hold: true,
+      }),
+    });
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || "Failed to enable keyboard control");
+    }
+  };
+
+  const toggleKeyboard = async (enabled) => {
+    setKeyboardError("");
+    if (enabled) {
+      try {
+        await postKeyboardConfig();
+        setKeyboardEnabled(true);
+        await fetchKeyboardStatus();
+      } catch (err) {
+        setKeyboardEnabled(false);
+        setKeyboardError(err.message || "Failed to enable keyboard control");
+      }
+    } else {
+      try {
+        await fetch(`${FLASK_API_BASE_URL}/keyboard/disable`, { method: "POST" });
+      } finally {
+        setKeyboardEnabled(false);
+        setKeyboardStatus({ enabled: false, pressed: [] });
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!keyboardEnabled) return;
+    postKeyboardConfig().catch((err) => setKeyboardError(err.message || "Failed to update keyboard config"));
+  }, [keyboardEnabled, keyboardProfile, keyboardSpeed, keyboardStrafeSpeed, keyboardTurnSpeed, keyboardTurbo]);
+
+  useEffect(() => {
+    if (!keyboardEnabled) return;
+    fetchKeyboardStatus().catch(() => {});
+    const timer = setInterval(() => {
+      fetchKeyboardStatus().catch(() => {});
+    }, 500);
+    return () => clearInterval(timer);
+  }, [keyboardEnabled]);
+
+  useEffect(() => {
+    if (!keyboardEnabled) return;
+    const handledCodes = getProfileKeySet(keyboardProfile);
+
+    const sendKeyEvent = async (type, evt) => {
+      if (shouldIgnoreKeyTarget(evt.target)) return;
+      if (type === "down" && evt.repeat) return;
+      const code = evt.code || "";
+      const key = evt.key || "";
+      const keyLower = String(key).toLowerCase();
+      const normalizedFallback =
+        keyLower.length === 1 && keyLower >= "a" && keyLower <= "z"
+          ? `Key${keyLower.toUpperCase()}`
+          : key;
+      const shouldHandle = handledCodes.has(code) || handledCodes.has(normalizedFallback);
+      if (!shouldHandle) return;
+
+      evt.preventDefault();
+
+      const payload = { type, code: evt.code, key: evt.key };
+      try {
+        const res = await fetch(`${FLASK_API_BASE_URL}/keyboard/event`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || "Keyboard event rejected");
+        }
+      } catch (err) {
+        setKeyboardError(err.message || "Keyboard event send failed");
+      }
+    };
+
+    const onKeyDown = (evt) => sendKeyEvent("down", evt);
+    const onKeyUp = (evt) => sendKeyEvent("up", evt);
+    const onBlur = () => {
+      fetch(`${FLASK_API_BASE_URL}/keyboard/disable`, { method: "POST" }).catch(() => {});
+      setKeyboardEnabled(false);
+      setKeyboardStatus({ enabled: false, pressed: [] });
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [keyboardEnabled, keyboardProfile, keyboardSpeed, keyboardStrafeSpeed, keyboardTurnSpeed, keyboardTurbo]);
 
   useEffect(() => {
   let interval;
@@ -321,6 +568,205 @@ const decompressor = useMemo(() => new PointCloudDecompressor(3), []);
     const interval = setInterval(fetchGpsData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const fetchMotionData = async () => {
+      try {
+        const [imuRes, odomRes] = await Promise.all([
+          fetch(`${FLASK_API_BASE_URL}/imu`),
+          fetch(`${FLASK_API_BASE_URL}/odom`),
+        ]);
+
+        if (imuRes.ok) {
+          const imuJson = await imuRes.json();
+          setImuData(imuJson.ghost || null);
+        }
+        if (odomRes.ok) {
+          const odomJson = await odomRes.json();
+          setOdomData(odomJson.ghost || null);
+        }
+      } catch {
+        // keep prior telemetry values
+      }
+    };
+
+    fetchMotionData();
+    const interval = setInterval(fetchMotionData, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchLowLevelTelemetry = async () => {
+      try {
+        const res = await fetch(`${FLASK_API_BASE_URL}/lowlevel/telemetry`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setLowLevelTelemetry(data);
+      } catch {
+        // keep prior value
+      }
+    };
+
+    fetchLowLevelTelemetry();
+    const interval = setInterval(fetchLowLevelTelemetry, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchGhostRuntime = async () => {
+      try {
+        const [statusRes, scriptsRes] = await Promise.all([
+          fetch(`${FLASK_API_BASE_URL}/ghost/status`),
+          fetch(`${FLASK_API_BASE_URL}/ghost/scripts`),
+        ]);
+        if (statusRes.ok) {
+          const statusJson = await statusRes.json();
+          setGhostRuntime(statusJson.ghost || null);
+        }
+        if (scriptsRes.ok) {
+          const scriptsJson = await scriptsRes.json();
+          setGhostScripts(scriptsJson.scripts || {});
+        }
+      } catch {
+        // keep prior values
+      }
+    };
+
+    fetchGhostRuntime();
+    const interval = setInterval(fetchGhostRuntime, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const setLowLevelBehavior = async (behavior) => {
+    try {
+      const response = await fetch(`${FLASK_API_BASE_URL}/lowlevel/behavior`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ behavior }),
+      });
+      const result = await response.json().catch(() => ({}));
+      setFeedback({
+        open: true,
+        message: result.message || `Behavior ${behavior} updated`,
+        severity: response.ok ? "success" : "error",
+      });
+    } catch {
+      setFeedback({
+        open: true,
+        message: `Failed to set behavior: ${behavior}`,
+        severity: "error",
+      });
+    }
+  };
+
+  const runGhostScript = async (script) => {
+    try {
+      const result = await postJson("/ghost/mission/run", { script });
+      setGhostRuntime(result.ghost || ghostRuntime);
+      showFeedback(`Mission requested: ${result.mission || script}`, "success");
+    } catch (error) {
+      showFeedback(error.message || `Failed to run ${script}`, "error");
+    }
+  };
+
+  const callGhostMissionAction = async (action) => {
+    try {
+      const result = await postJson(`/ghost/mission/${action}`, {});
+      setGhostRuntime(result.ghost || ghostRuntime);
+      showFeedback(`Mission action sent: ${action}`, "success");
+    } catch (error) {
+      showFeedback(error.message || `Mission action failed: ${action}`, "error");
+    }
+  };
+
+  const callGhostLidarAction = async (action) => {
+    try {
+      const result = await postJson(`/ghost/lidar/${action}`, {});
+      setGhostRuntime(result.ghost || ghostRuntime);
+      showFeedback(`Lidar action sent: ${action}`, "success");
+    } catch (error) {
+      showFeedback(error.message || `Lidar action failed: ${action}`, "error");
+    }
+  };
+
+  const saveGhostMap = async () => {
+    try {
+      const result = await postJson("/ghost/lidar/save_map", {
+        destination: saveMapDestination,
+        resolution: Number(saveMapResolution),
+      });
+      setGhostRuntime(result.ghost || ghostRuntime);
+      showFeedback("Save map request sent", "success");
+    } catch (error) {
+      showFeedback(error.message || "Failed to save map", "error");
+    }
+  };
+
+  const pushDiagnosticsBitfield = async () => {
+    const parsed = Number(diagBitfieldInput);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setParamFeedback("Diagnostics bitfield must be a non-negative number");
+      return;
+    }
+    try {
+      const response = await fetch(`${FLASK_API_BASE_URL}/lowlevel/diagnostics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bitfield: parsed }),
+      });
+      const result = await response.json().catch(() => ({}));
+      setParamFeedback(response.ok ? "Diagnostics updated" : (result.message || "Diagnostics update failed"));
+    } catch {
+      setParamFeedback("Diagnostics update failed");
+    }
+  };
+
+  const setLowLevelParam = async () => {
+    if (!paramName.trim()) {
+      setParamFeedback("Param name is required");
+      return;
+    }
+    try {
+      let parsedValue = paramValue;
+      try {
+        parsedValue = JSON.parse(paramValue);
+      } catch {
+        parsedValue = paramValue;
+      }
+      const response = await fetch(`${FLASK_API_BASE_URL}/lowlevel/params/set`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: paramName.trim(), value: parsedValue }),
+      });
+      const result = await response.json().catch(() => ({}));
+      setParamFeedback(response.ok ? `Set ${result.name} = ${JSON.stringify(result.value)}` : (result.message || "Set failed"));
+    } catch {
+      setParamFeedback("Set failed");
+    }
+  };
+
+  const getLowLevelParam = async () => {
+    if (!paramName.trim()) {
+      setParamFeedback("Param name is required");
+      return;
+    }
+    try {
+      const response = await fetch(`${FLASK_API_BASE_URL}/lowlevel/params/get`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: paramName.trim() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setParamValue(typeof result.value === "string" ? result.value : JSON.stringify(result.value ?? ""));
+        setParamFeedback(`Read ${result.name} = ${JSON.stringify(result.value)}`);
+      } else {
+        setParamFeedback(result.message || "Read failed");
+      }
+    } catch {
+      setParamFeedback("Read failed");
+    }
+  };
 
 useEffect(() => {
   if (!show3DView) return;
@@ -610,7 +1056,21 @@ const handleCommandSubmit = (e) => {
   }
 
   const topic = parsedCommand?.topic;
-  const cmd = parsedCommand?.command ?? {};
+  const cmdObject =
+    parsedCommand &&
+    typeof parsedCommand.command === "object" &&
+    parsedCommand.command !== null
+      ? parsedCommand.command
+      : {};
+  const topLevelParams =
+    parsedCommand && typeof parsedCommand === "object"
+      ? Object.entries(parsedCommand).reduce((acc, [key, value]) => {
+          if (key === "topic" || key === "method" || key === "command") return acc;
+          acc[key] = value;
+          return acc;
+        }, {})
+      : {};
+  const cmd = { ...topLevelParams, ...cmdObject };
 
   if (!topic) {
     setFeedback({
@@ -665,6 +1125,20 @@ const handleCommandSubmit = (e) => {
       const result = await res.json().catch(() => ({}));
       showResult(res.ok, result, "Local goal sent!", "Failed to send local goal.");
     },
+
+    "/command/autonomous_move": async () => {
+      const linearX = Number(cmd.linear_x);
+      const body = {
+        linear_x: Number.isFinite(linearX) ? linearX : 0.6,
+      };
+      const res = await fetch(`${FLASK_API_BASE_URL}/command/autonomous_move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const result = await res.json().catch(() => ({}));
+      showResult(res.ok, result, "Planner goal sent!", "Failed to send planner goal.");
+    },
   };
 
   // Execute either a route handler or default /command
@@ -693,71 +1167,204 @@ const handleCommandSubmit = (e) => {
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h4">ROS 2 Agent Control Center</Typography>
-      <Typography variant="h6">Battery Status: {batteryStatus}%</Typography>
-      <Typography variant="h6">
-        GPS: Lat {gpsData.lat}, Lng {gpsData.lng}
-      </Typography>
-  
-      <Box mb={3}>
-        <Typography variant="h6">Select Agent:</Typography>
-        <Select
-          value={selectedAgent}
-          onChange={(e) => setSelectedAgent(e.target.value)}
-        >
-          {Object.keys(agents).map((agent) => (
-            <MenuItem key={agent} value={agent}>
-              {agents[agent].name}
-            </MenuItem>
-          ))}
-        </Select>
-      </Box>
-  
-      <Box mb={3}>
-        <Typography variant="h6">Live Camera Feed:</Typography>
-        <Select
-          value={selectedCamera}
-          onChange={(e) => setSelectedCamera(e.target.value)}
-        >
-          {Object.keys(agents[selectedAgent].cameras).map((cam) => (
-            <MenuItem key={cam} value={cam}>
-              {cam}
-            </MenuItem>
-          ))}
-        </Select>
-  
-        <Button
-          variant="outlined"
-        sx={{ my: 2 }}
-          onClick={() =>
-          setViewMode((prev) => (prev === "stream" ? "snapshot" : "stream"))
-        }
-      >
-  Switch to {viewMode === "stream" ? "Snapshot" : "Live Stream"} View
-      </Button>
+      <Grid container spacing={2} sx={{ mt: 1, mb: 2 }}>
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1.5 }}>
+              <Typography variant="subtitle2">Battery</Typography>
+              <Typography variant="h6">{batteryStatus}%</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1.5 }}>
+              <Typography variant="subtitle2">GPS</Typography>
+              <Typography variant="body1">Lat {gpsData.lat}, Lng {gpsData.lng}</Typography>
+              <Typography variant="caption" sx={{ opacity: 0.75 }}>
+                Speed x: {Number(odomData?.twist?.linear?.x || 0).toFixed(2)} m/s
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card variant="outlined">
+            <CardContent sx={{ py: 1.5 }}>
+              <Typography variant="subtitle2">Keyboard</Typography>
+              <Chip
+                size="small"
+                label={keyboardEnabled ? "Enabled" : "Disabled"}
+                color={keyboardEnabled ? "success" : "default"}
+                sx={{ mr: 1 }}
+              />
+              <Chip
+                size="small"
+                label={`Pressed: ${keyboardStatus.pressed.length}`}
+                variant="outlined"
+              />
+              <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.75 }}>
+                Yaw rate: {Number(imuData?.angular_velocity?.z || 0).toFixed(2)} rad/s
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      {viewMode === "snapshot" && (
-          <>
-            <Button
-              variant="contained"
-              sx={{ mx: 1 }}
-              onClick={() => {
-                const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
-                setVideoStreamUrl(url);
-              }}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} md={4}>
+          <FormControl fullWidth>
+            <InputLabel id="agent-select-label">Agent</InputLabel>
+            <Select
+              labelId="agent-select-label"
+              label="Agent"
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
             >
-              Refresh Snapshot
-            </Button>
-  
-            <Button
-              variant={autoSnapshot ? "contained" : "outlined"}
-              color={autoSnapshot ? "success" : "primary"}
-              sx={{ mx: 1 }}
-              onClick={() => setAutoSnapshot((prev) => !prev)}
+              {Object.keys(agents).map((agent) => (
+                <MenuItem key={agent} value={agent}>
+                  {agents[agent].name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <FormControl fullWidth>
+            <InputLabel id="camera-select-label">Camera</InputLabel>
+            <Select
+              labelId="camera-select-label"
+              label="Camera"
+              value={selectedCamera}
+              onChange={(e) => setSelectedCamera(e.target.value)}
             >
-              {autoSnapshot ? "Auto Snapshot: ON" : "Auto Snapshot: OFF"}
+              {Object.keys(agents[selectedAgent].cameras).map((cam) => (
+                <MenuItem key={cam} value={cam}>
+                  {cam}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <Button
+              variant="outlined"
+              onClick={() => setViewMode((prev) => (prev === "stream" ? "snapshot" : "stream"))}
+            >
+              {viewMode === "stream" ? "Snapshot Mode" : "Live Mode"}
             </Button>
-          </>
-        )}
+            {viewMode === "snapshot" && (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    const url = `${FLASK_API_BASE_URL}/proxy_camera_snapshot/${agents[selectedAgent].cameras[selectedCamera]}?t=${Date.now()}`;
+                    setVideoStreamUrl(url);
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant={autoSnapshot ? "contained" : "outlined"}
+                  color={autoSnapshot ? "success" : "primary"}
+                  onClick={() => setAutoSnapshot((prev) => !prev)}
+                >
+                  Auto {autoSnapshot ? "ON" : "OFF"}
+                </Button>
+              </>
+            )}
+          </Box>
+        </Grid>
+      </Grid>
+
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} lg={6}>
+          <Card
+            sx={{
+              background: "linear-gradient(135deg, #f4efe2 0%, #d7e5f3 100%)",
+              border: "1px solid rgba(22,40,58,0.12)",
+            }}
+          >
+            <CardContent>
+              <Typography variant="h5">Ghost Mission Bridge</Typography>
+              <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+                Active script: {ghostRuntime?.mission?.active_script || "none"} | Requested: {ghostRuntime?.mission?.requested || "none"}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                Mission status: {ghostRuntime?.mission?.status_text || "unknown"} | Last command: {ghostRuntime?.mission?.last_command || "none"}
+              </Typography>
+
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 2 }}>
+                {Object.entries(ghostScripts).map(([key, meta]) => (
+                  <Button key={key} size="small" variant="outlined" onClick={() => runGhostScript(key)}>
+                    {key}
+                  </Button>
+                ))}
+              </Box>
+
+              <Typography variant="caption" sx={{ display: "block", mt: 1.5, opacity: 0.75 }}>
+                Preferred Vision 60 workflows come from built-in Ghost missions, not the synthetic local queue.
+              </Typography>
+
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 2 }}>
+                <Button size="small" variant="contained" onClick={() => callGhostMissionAction("start")}>Start</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostMissionAction("pause")}>Pause</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostMissionAction("unpause")}>Unpause</Button>
+                <Button size="small" color="error" variant="outlined" onClick={() => callGhostMissionAction("cancel")}>Cancel</Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} lg={6}>
+          <Card
+            sx={{
+              background: "linear-gradient(135deg, #f7f2ea 0%, #e0f0e9 100%)",
+              border: "1px solid rgba(34,60,44,0.12)",
+            }}
+          >
+            <CardContent>
+              <Typography variant="h5">Lidar And Relocalization</Typography>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                <Chip size="small" label={`LIO ${ghostRuntime?.lidar?.lio_active ? "active" : "idle"}`} color={ghostRuntime?.lidar?.lio_active ? "success" : "default"} />
+                <Chip size="small" variant="outlined" label={`Reloc ${ghostRuntime?.lidar?.relocalization_status || "unknown"}`} />
+                <Chip size="small" variant="outlined" label={`Odom ${ghostRuntime?.lidar?.odom_source || "unknown"}`} />
+                <Chip size="small" variant="outlined" label={`Path idx ${ghostRuntime?.planner?.current_path_index ?? "-"}`} />
+              </Box>
+
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 2 }}>
+                <Button size="small" variant="contained" onClick={() => callGhostLidarAction("activate")}>Activate LIO</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostLidarAction("relocalize")}>Restart Relocalization</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostLidarAction("activate_apriltag")}>Enable AprilTag</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostLidarAction("planner")}>Activate Planner</Button>
+                <Button size="small" variant="outlined" onClick={() => callGhostLidarAction("mpc_lio_obs")}>MPC LIO Obs</Button>
+              </Box>
+
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 2 }}>
+                <TextField
+                  size="small"
+                  label="Save Map Destination"
+                  value={saveMapDestination}
+                  onChange={(e) => setSaveMapDestination(e.target.value)}
+                  placeholder="/home/ghost/gps_denied_maps/site_a"
+                />
+                <TextField
+                  size="small"
+                  label="Resolution"
+                  type="number"
+                  value={saveMapResolution}
+                  onChange={(e) => setSaveMapResolution(Number(e.target.value))}
+                />
+                <Button size="small" variant="contained" onClick={saveGhostMap}>Save Map</Button>
+              </Box>
+
+              <Typography variant="caption" sx={{ display: "block", mt: 1.5, opacity: 0.75 }}>
+                Map dir: {ghostRuntime?.maps?.directory || "unknown"} | Last save: {ghostRuntime?.lidar?.last_map_save?.destination || "none"}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
   
         {show3DView ? (
   <Box mt={2} display="flex" justifyContent="space-between" gap={4}>
@@ -809,7 +1416,6 @@ const handleCommandSubmit = (e) => {
   </Box>
 )}
 
-      </Box>  
       <Grid container spacing={4}>
         <Grid item xs={12}>
           <Card>
@@ -829,12 +1435,221 @@ const handleCommandSubmit = (e) => {
                   sx={{ mb: 2, width: "200px" }}
                   inputProps={{ min: 1, max: 10 }}
                 />
+
+                <Box sx={{ mt: 2, p: 2, border: "1px solid #ddd", borderRadius: 2 }}>
+                  <Typography variant="h6">Keyboard Controller (Ghost Input)</Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1 }}>
+                    <Typography variant="body2">Enable</Typography>
+                    <Switch
+                      checked={keyboardEnabled}
+                      onChange={(e) => toggleKeyboard(e.target.checked)}
+                    />
+                    <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                      Hold Shift for turbo, Space to stop
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={keyboardStatus.enabled ? "Backend: Ready" : "Backend: Idle"}
+                      color={keyboardStatus.enabled ? "success" : "default"}
+                      variant={keyboardStatus.enabled ? "filled" : "outlined"}
+                    />
+                  </Box>
+
+                  {keyboardEnabled && (
+                    <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.8 }}>
+                      Active keys: {keyboardStatus.pressed.length ? keyboardStatus.pressed.join(", ") : "none"}
+                    </Typography>
+                  )}
+
+                  {keyboardError && (
+                    <Alert severity="error" sx={{ mt: 1 }}>
+                      {keyboardError}
+                    </Alert>
+                  )}
+
+                  <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
+                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                      <InputLabel id="kb-profile-label">Profile</InputLabel>
+                      <Select
+                        labelId="kb-profile-label"
+                        label="Profile"
+                        value={keyboardProfile}
+                        onChange={(e) => setKeyboardProfile(e.target.value)}
+                      >
+                        {KEYBOARD_PROFILES.map((p) => (
+                          <MenuItem key={p.value} value={p.value}>
+                            {p.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <TextField
+                      label="Speed (m/s)"
+                      type="number"
+                      size="small"
+                      value={keyboardSpeed}
+                      onChange={(e) => setKeyboardSpeed(Number(e.target.value))}
+                      inputProps={{ min: 0, step: 0.1 }}
+                    />
+                    <TextField
+                      label="Strafe (m/s)"
+                      type="number"
+                      size="small"
+                      value={keyboardStrafeSpeed}
+                      onChange={(e) => setKeyboardStrafeSpeed(Number(e.target.value))}
+                      inputProps={{ min: 0, step: 0.1 }}
+                    />
+                    <TextField
+                      label="Turn (rad/s)"
+                      type="number"
+                      size="small"
+                      value={keyboardTurnSpeed}
+                      onChange={(e) => setKeyboardTurnSpeed(Number(e.target.value))}
+                      inputProps={{ min: 0, step: 0.1 }}
+                    />
+                    <TextField
+                      label="Turbo Mult"
+                      type="number"
+                      size="small"
+                      value={keyboardTurbo}
+                      onChange={(e) => setKeyboardTurbo(Number(e.target.value))}
+                      inputProps={{ min: 1, step: 0.1 }}
+                    />
+                  </Box>
+                </Box>
+
+                <Box sx={{ mt: 2, p: 2, border: "1px solid #ddd", borderRadius: 2 }}>
+                  <Typography variant="h6">Low-Level MBLink Upgrade Panel</Typography>
+                  <Typography variant="body2" sx={{ mt: 1, opacity: 0.8 }}>
+                    Behavior: {lowLevelTelemetry?.behavior?.name || "unknown"} | Mode: {lowLevelTelemetry?.behavior?.control_mode ?? "-"} | Action: {lowLevelTelemetry?.behavior?.action ?? "-"}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Twist des: vx {Number(lowLevelTelemetry?.se2twist_des?.vx || 0).toFixed(2)}, vy {Number(lowLevelTelemetry?.se2twist_des?.vy || 0).toFixed(2)}, wz {Number(lowLevelTelemetry?.se2twist_des?.wz || 0).toFixed(2)}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.8 }}>
+                    Diagnostics: {lowLevelTelemetry?.diagnostics?.count || 0} active
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", opacity: 0.75, mb: 1 }}>
+                    {(lowLevelTelemetry?.diagnostics?.active || []).slice(0, 6).join(", ") || "No active flags"}
+                  </Typography>
+
+                  <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                    <Button size="small" variant="outlined" onClick={() => setLowLevelBehavior("walk")}>Walk</Button>
+                    <Button size="small" variant="outlined" onClick={() => setLowLevelBehavior("stand")}>Stand</Button>
+                    <Button size="small" variant="outlined" onClick={() => setLowLevelBehavior("sit")}>Sit</Button>
+                    <Button size="small" variant="outlined" onClick={() => setLowLevelBehavior("manual")}>Manual Mode</Button>
+                    <Button size="small" variant="outlined" onClick={() => setLowLevelBehavior("original")}>Original Mode</Button>
+                  </Box>
+
+                  <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap" }}>
+                    <TextField
+                      label="Diag Bitfield"
+                      size="small"
+                      type="number"
+                      value={diagBitfieldInput}
+                      onChange={(e) => setDiagBitfieldInput(e.target.value)}
+                      inputProps={{ min: 0, step: 1 }}
+                    />
+                    <Button size="small" variant="contained" onClick={pushDiagnosticsBitfield}>Apply Diagnostics</Button>
+                  </Box>
+
+                  <Box sx={{ display: "flex", gap: 1, mt: 2, flexWrap: "wrap" }}>
+                    <TextField
+                      label="Param Name"
+                      size="small"
+                      value={paramName}
+                      onChange={(e) => setParamName(e.target.value)}
+                    />
+                    <TextField
+                      label="Param Value"
+                      size="small"
+                      value={paramValue}
+                      onChange={(e) => setParamValue(e.target.value)}
+                    />
+                    <Button size="small" variant="outlined" onClick={getLowLevelParam}>Get</Button>
+                    <Button size="small" variant="contained" onClick={setLowLevelParam}>Set</Button>
+                  </Box>
+                  {paramFeedback && (
+                    <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.8 }}>
+                      {paramFeedback}
+                    </Typography>
+                  )}
+
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle2">Joint Telemetry (Vision60/Ghost)</Typography>
+                    {(() => {
+                      const jointTemp = safeArray(lowLevelTelemetry?.joint_temperature);
+                      const jointCurrent = safeArray(lowLevelTelemetry?.joint_current);
+                      const jointVoltage = safeArray(lowLevelTelemetry?.joint_voltage);
+                      const tempSummary = summarizeArray(jointTemp);
+                      const currentSummary = summarizeArray(jointCurrent);
+                      const voltageSummary = summarizeArray(jointVoltage);
+
+                      return (
+                        <>
+                          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 1 }}>
+                            <Chip size="small" variant="outlined" label={`Temp avg ${tempSummary.avg.toFixed(1)}°C`} />
+                            <Chip size="small" variant="outlined" label={`Temp max ${tempSummary.max.toFixed(1)}°C`} color={tempSummary.max >= JOINT_TEMP_CRIT ? "error" : (tempSummary.max >= JOINT_TEMP_WARN ? "warning" : "default")} />
+                            <Chip size="small" variant="outlined" label={`Current avg ${currentSummary.avg.toFixed(1)}A`} />
+                            <Chip size="small" variant="outlined" label={`Current max ${currentSummary.max.toFixed(1)}A`} color={currentSummary.max >= JOINT_CURRENT_WARN ? "warning" : "default"} />
+                            <Chip size="small" variant="outlined" label={`Voltage avg ${voltageSummary.avg.toFixed(1)}V`} />
+                          </Box>
+
+                          <Box sx={{ mt: 1, display: "grid", gap: 0.5, gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+                            {jointTemp.map((temp, index) => {
+                              const current = Number(jointCurrent[index] || 0);
+                              const voltage = Number(jointVoltage[index] || 0);
+                              const tempNum = Number(temp || 0);
+                              const tempColor = tempNum >= JOINT_TEMP_CRIT ? "#ffebee" : (tempNum >= JOINT_TEMP_WARN ? "#fff8e1" : "#f5f5f5");
+                              return (
+                                <Box key={`joint-${index}`} sx={{ p: 0.75, borderRadius: 1, border: "1px solid #ddd", bgcolor: tempColor }}>
+                                  <Typography variant="caption" sx={{ fontWeight: 700 }}>J{index}</Typography>
+                                  <Typography variant="caption" sx={{ display: "block" }}>T {tempNum.toFixed(1)}°C</Typography>
+                                  <Typography variant="caption" sx={{ display: "block" }}>I {current.toFixed(1)}A</Typography>
+                                  <Typography variant="caption" sx={{ display: "block" }}>V {voltage.toFixed(1)}V</Typography>
+                                </Box>
+                              );
+                            })}
+                          </Box>
+
+                          <Typography variant="caption" sx={{ display: "block", mt: 1, opacity: 0.75 }}>
+                            Contacts: {(safeArray(lowLevelTelemetry?.contacts).length ? safeArray(lowLevelTelemetry?.contacts).join(", ") : "-")} | Phase: {(safeArray(lowLevelTelemetry?.phase).length ? safeArray(lowLevelTelemetry?.phase).map((p) => Number(p).toFixed(2)).join(", ") : "-")} | Swing: {(safeArray(lowLevelTelemetry?.swing_mode).length ? safeArray(lowLevelTelemetry?.swing_mode).join(", ") : "-")}
+                          </Typography>
+                        </>
+                      );
+                    })()}
+                  </Box>
+                </Box>
               
                <Box mt={4} mb={2}>
   <Typography variant="h6">3D Point Cloud Visualization</Typography>
 <Typography variant="body2" sx={{ mt: 1 }}>
   Points received: {Array.isArray(checkData) ? checkData.length : 0}
 </Typography>
+
+{ghostRuntime?.metrics && (
+  <Box
+    sx={{
+      mt: 1.5,
+      p: 1.5,
+      borderRadius: 2,
+      background: "linear-gradient(135deg, #10212b 0%, #18384a 100%)",
+      color: "#dcecf5",
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+      gap: 1,
+      maxWidth: 980,
+    }}
+  >
+    <div>raw pts: {ghostRuntime.metrics.pointcloud_points ?? 0}</div>
+    <div>obst pts: {ghostRuntime.metrics.obstacle_points ?? 0}</div>
+    <div>cloud age: {ghostRuntime.metrics.pointcloud_age_s ?? "-"} s</div>
+    <div>obst age: {ghostRuntime.metrics.obstacle_age_s ?? "-"} s</div>
+    <div>preview files: {ghostRuntime.metrics.preview_count ?? 0}</div>
+    <div>latest map: {ghostRuntime.metrics.latest_map?.name || "none"}</div>
+  </Box>
+)}
 
 {pcStats && (
   <Box
@@ -910,37 +1725,71 @@ const handleCommandSubmit = (e) => {
   )}
 </Box>
 
+{ghostRuntime?.maps?.saved?.length ? (
+  <Box sx={{ mt: 2 }}>
+    <Typography variant="subtitle1">Saved GPS-Denied Maps</Typography>
+    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 2, mt: 1 }}>
+      {ghostRuntime.maps.saved.slice(0, 4).map((item) => (
+        <Card key={item.name} variant="outlined" sx={{ overflow: "hidden", backgroundColor: item.is_latest ? "#f4f9ff" : "#fff" }}>
+          {item.preview ? (
+            <Box
+              component="img"
+              src={`${FLASK_API_BASE_URL}/ghost/maps/preview/${item.preview}`}
+              alt={item.preview}
+              sx={{ width: "100%", height: 140, objectFit: "cover", borderBottom: "1px solid #ddd" }}
+            />
+          ) : (
+            <Box sx={{ width: "100%", height: 140, display: "grid", placeItems: "center", bgcolor: "#f3f3f3" }}>
+              <Typography variant="caption">No preview PNG</Typography>
+            </Box>
+          )}
+          <CardContent sx={{ py: 1.25 }}>
+            <Typography variant="subtitle2">{item.name}</Typography>
+            <Typography variant="caption" sx={{ display: "block", opacity: 0.75 }}>
+              {(item.size_bytes / (1024 * 1024)).toFixed(1)} MB
+            </Typography>
+            <Typography variant="caption" sx={{ display: "block", opacity: 0.75 }}>
+              preview: {item.preview || "none"}
+            </Typography>
+          </CardContent>
+        </Card>
+      ))}
+    </Box>
+  </Box>
+) : null}
 
-
-
-                {Object.keys(agents[selectedAgent].commands).map((cmd) => (
-                  <Button
-                    key={cmd}
-                    variant="contained"
-                    sx={{ m: 1 }}
-                    onClick={() =>
-                      sendCommand(
-                        selectedAgent,
-                        agents[selectedAgent].commands[cmd],
-                        {
-                          action: ["Sit", "Stand", "Walk"].includes(cmd)
-                            ? cmd.toLowerCase()
-                            : undefined,
-                          gait: cmd === "Set Gait (walk)" ? "walk" : undefined,
-
-                          duration:
-                            ["Move Forward", "Move Backward", "Move Left", "Move Right", "Turn Left", "Turn Right"].includes(
-                              cmd
-                            )
-                              ? movementDuration
-                              : undefined,
+                <Grid container spacing={1} sx={{ mt: 1 }}>
+                  {Object.keys(agents[selectedAgent].commands).map((cmd) => (
+                    <Grid item xs={12} sm={6} md={4} lg={3} key={cmd}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        color={cmd === "Stop" || cmd === "E-Stop" ? "error" : "primary"}
+                        size="small"
+                        onClick={() =>
+                          sendCommand(
+                            selectedAgent,
+                            agents[selectedAgent].commands[cmd],
+                            {
+                              action: ["Sit", "Stand", "Walk"].includes(cmd)
+                                ? cmd.toLowerCase()
+                                : undefined,
+                              gait: cmd === "Set Gait (Walk)" ? "walk" : undefined,
+                              duration:
+                                ["Move Forward", "Move Backward", "Move Left", "Move Right", "Turn Left", "Turn Right"].includes(
+                                  cmd
+                                )
+                                  ? movementDuration
+                                  : undefined,
+                            }
+                          )
                         }
-                      )
-                    }
-                  >
-                    {cmd}
-                  </Button>
-                ))}
+                      >
+                        {cmd}
+                      </Button>
+                    </Grid>
+                  ))}
+                </Grid>
 
                 <Button
                   variant="outlined"

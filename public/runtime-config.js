@@ -1,0 +1,1 @@
+window.__COMMAND_CENTER_CONFIG__ = window.__COMMAND_CENTER_CONFIG__ || {};
