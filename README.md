@@ -86,7 +86,13 @@ because they require robot ROS2, GPU inference, or simulator-specific runtimes.
 
 ## Demo video
 
-The merged Command Center demonstration is distributed as a GitHub Release asset instead of being committed to Git history. This keeps normal clones small while allowing the original MP4 to be downloaded from the repository's Releases page.
+[Watch the Command Center feature demo (MP4)](https://github.com/jd702/CommandCenter/releases/download/demo-2026-08/CommandCenter_Demo.mp4)
+
+The public demo covers data transformation, live agent tracking, point-cloud
+visualization, and Vision 60 camera integration. Location coordinates and
+terminal/network details are redacted. The video is distributed as a
+[GitHub Release asset](https://github.com/jd702/CommandCenter/releases/tag/demo-2026-08)
+to keep normal repository clones small.
 
 ## Build and test
 
